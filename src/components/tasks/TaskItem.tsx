@@ -120,7 +120,7 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
           </Label>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-end space-x-2">
+      <CardFooter className="flex justify-end space-x-2 flex-wrap gap-y-2">
         <Button
             variant="outline"
             size="sm"
