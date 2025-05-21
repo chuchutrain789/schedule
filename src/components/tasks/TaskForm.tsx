@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea'; // Import Textarea
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
@@ -22,6 +23,7 @@ const taskSchema = z.object({
   assignee: z.string().min(1, { message: '담당자를 선택해주세요.' }),
   deadline: z.date({ required_error: '마감일을 선택해주세요.' }),
   priority: z.enum(['high', 'medium', 'low'], { required_error: '중요도를 선택해주세요.' }),
+  notes: z.string().optional(), // Add notes to schema, make it optional
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
@@ -30,7 +32,7 @@ interface TaskFormProps {
   onSubmit: (task: Omit<Task, 'id' | 'completed' | 'enableReminders' | 'completionDate'>) => void;
   initialData?: Task | null;
   onClose?: () => void;
-  assignees: string[]; // Changed from static array to prop
+  assignees: string[];
 }
 
 export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskFormProps) {
@@ -42,16 +44,17 @@ export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskForm
           assignee: initialData.assignee,
           deadline: new Date(initialData.deadline),
           priority: initialData.priority,
+          notes: initialData.notes || '', // Set notes from initialData or empty string
         }
       : {
           name: '',
-          assignee: assignees.length > 0 ? assignees[0] : '', // Default to first assignee or empty if list is empty
+          assignee: assignees.length > 0 ? assignees[0] : '',
           deadline: undefined,
           priority: 'medium',
+          notes: '', // Default notes to empty string for new tasks
         },
   });
 
-  // Reset form if initialData or assignees list changes for a new task form
   useEffect(() => {
     if (!initialData) {
       form.reset({
@@ -59,6 +62,7 @@ export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskForm
         assignee: assignees.length > 0 ? assignees[0] : '',
         deadline: undefined,
         priority: 'medium',
+        notes: '',
       });
     } else {
         form.reset({
@@ -66,6 +70,7 @@ export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskForm
             assignee: initialData.assignee,
             deadline: new Date(initialData.deadline),
             priority: initialData.priority,
+            notes: initialData.notes || '',
         });
     }
   }, [initialData, assignees, form]);
@@ -77,13 +82,15 @@ export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskForm
       assignee: values.assignee,
       deadline: format(values.deadline, 'yyyy-MM-dd'),
       priority: values.priority as Priority,
+      notes: values.notes, // Pass notes value
     });
-    if (!initialData) { 
-      form.reset({ 
-        name: '', 
-        assignee: assignees.length > 0 ? assignees[0] : '', 
-        deadline: undefined, 
-        priority: 'medium' 
+    if (!initialData) {
+      form.reset({
+        name: '',
+        assignee: assignees.length > 0 ? assignees[0] : '',
+        deadline: undefined,
+        priority: 'medium',
+        notes: '',
       });
     }
     onClose?.();
@@ -111,10 +118,10 @@ export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskForm
           render={({ field }) => (
             <FormItem>
               <FormLabel>담당자</FormLabel>
-              <Select 
-                onValueChange={field.onChange} 
-                value={field.value} // Ensure value is controlled
-                defaultValue={field.value || (assignees.length > 0 ? assignees[0] : '')} // Ensure default value selection
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                defaultValue={field.value || (assignees.length > 0 ? assignees[0] : '')}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -190,6 +197,19 @@ export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskForm
                   <SelectItem value="low">낮음</SelectItem>
                 </SelectContent>
               </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>메모</FormLabel>
+              <FormControl>
+                <Textarea placeholder="간단한 메모를 남겨보세요 (선택 사항)" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

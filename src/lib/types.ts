@@ -10,5 +10,6 @@ export interface Task {
   completed: boolean;
   completionDate?: string; // ISO string, e.g., new Date().toISOString()
   enableReminders: boolean;
+  notes?: string; // Optional notes field
 }
 

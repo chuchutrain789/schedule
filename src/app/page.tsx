@@ -10,10 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Calendar as CalendarIconShad, Wand2, PlusSquare, UserCog, X, Archive } from 'lucide-react';
+import { Calendar as CalendarIconShad, PlusSquare, UserCog, X, Archive } from 'lucide-react'; // Wand2 removed
 import { AppHeader } from '@/components/common/Header';
-import { AiSchedulerModal } from '@/components/tasks/AiSchedulerModal';
-import { getAiScheduleAction } from './actions';
+// AiSchedulerModal and getAiScheduleAction imports removed
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar'; // Shadcn Calendar
 import { ko } from 'date-fns/locale';
@@ -40,9 +39,7 @@ export default function HomePage() {
   const [assignees, setAssignees] = useState<string[]>(initialAssignees);
   const [isTaskFormModalOpen, setIsTaskFormModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [aiSchedule, setAiSchedule] = useState<string | null>(null);
-  const [isAiLoading, setIsAiLoading] = useState(false);
+  // AI Modal related states removed
   const { toast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<string[]>([]);
@@ -73,6 +70,7 @@ export default function HomePage() {
             ...task,
             deadline: String(task.deadline),
             completionDate: task.completionDate ? String(task.completionDate) : undefined,
+            notes: task.notes || undefined, // Ensure notes is loaded
           })));
         } else {
           setTasks([]);
@@ -135,9 +133,7 @@ export default function HomePage() {
 
 
   const parseDeadline = (deadlineStr: string): Date => {
-    // Assuming deadlineStr is 'YYYY-MM-DD'
     const parts = deadlineStr.split('-').map(Number);
-    // new Date(year, monthIndex, day) - monthIndex is 0-based
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
 
@@ -230,7 +226,7 @@ export default function HomePage() {
                         handleCalendarBatchComplete(dateStr, assignee);
                       }
                     }}
-                    onClick={(e) => e.stopPropagation()} // Prevent day click when checkbox is clicked
+                    onClick={(e) => e.stopPropagation()}
                     className="mr-1.5 h-3.5 w-3.5 bg-white border-neutral-400 data-[state=checked]:bg-green-500 data-[state=checked]:text-white data-[state=checked]:border-green-500 shrink-0"
                     aria-label={`${assignee} ${dateStr} 업무 일괄 완료`}
                   />
@@ -242,7 +238,7 @@ export default function HomePage() {
                     )}
                     title={tasksForThisAssigneeOnThisDay || assignee}
                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent day click when assignee badge is clicked
+                        e.stopPropagation();
                         const tasksToHighlight = tasks.filter(
                             task => task.deadline === dateStr && task.assignee === assignee && !task.completed
                         );
@@ -268,7 +264,7 @@ export default function HomePage() {
         )}
       </div>
     );
-  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, assignees]); // assignees added to dependency array
+  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, assignees]);
 
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
@@ -280,8 +276,6 @@ export default function HomePage() {
     let specificAssignee: string | undefined = undefined;
     let currentElement = event.target as HTMLElement | null;
 
-    // Traverse up the DOM tree to find if a specific assignee badge was clicked
-    // and to check if the click originated from a checkbox (to prevent highlighting)
     let clickOnCheckbox = false;
     while (currentElement) {
         if (currentElement.dataset && currentElement.dataset.assignee && !specificAssignee) {
@@ -289,14 +283,14 @@ export default function HomePage() {
         }
         if (currentElement.role === 'checkbox' || (currentElement.tagName === 'INPUT' && currentElement.getAttribute('type') === 'checkbox') || currentElement.querySelector('[role="checkbox"]')) {
           clickOnCheckbox = true;
-          break; // If checkbox is part of the click target, stop and don't highlight
+          break;
         }
-        if (currentElement === event.currentTarget) break; // Stop if we reach the day cell itself
+        if (currentElement === event.currentTarget) break;
         currentElement = currentElement.parentElement;
     }
 
     if (clickOnCheckbox) {
-      return; // Do nothing if the click was on a checkbox or its label part
+      return;
     }
 
     let tasksToConsider = tasks.filter(
@@ -347,6 +341,7 @@ export default function HomePage() {
       id: crypto.randomUUID(),
       completed: false,
       enableReminders: true,
+      // notes field will be included from newTaskData if provided by TaskForm
     };
     setTasks((prevTasks) => [newTask, ...prevTasks]);
     setIsTaskFormModalOpen(false);
@@ -419,13 +414,13 @@ export default function HomePage() {
   }
 
   const activeTasks = useMemo(() => {
-    const today = startOfToday(); // Use startOfToday for consistency
+    const today = startOfToday();
     return tasks.filter(task => {
       if (!task.completed) return true;
       if (!task.completionDate) return true;
       try {
         const completionD = parseISO(task.completionDate);
-        return differenceInCalendarDays(today, completionD) < 1; // Tasks completed today (diff 0) remain active
+        return differenceInCalendarDays(today, completionD) < 1;
       } catch (e) {
         console.error("Error parsing completionDate for activeTasks filter:", task.completionDate, e);
         return true;
@@ -434,12 +429,12 @@ export default function HomePage() {
   }, [tasks]);
 
   const archivedTasksToDisplay = useMemo(() => {
-    const today = startOfToday(); // Use startOfToday for consistency
+    const today = startOfToday();
     return tasks.filter(task => {
       if (!task.completed || !task.completionDate) return false;
       try {
         const completionD = parseISO(task.completionDate);
-        return differenceInCalendarDays(today, completionD) >= 1; // Tasks completed yesterday or earlier (diff >= 1) are archived
+        return differenceInCalendarDays(today, completionD) >= 1;
       } catch (e) {
         console.error("Error parsing completionDate for archivedTasksToDisplay filter:", task.completionDate, e);
         return false;
@@ -454,22 +449,7 @@ export default function HomePage() {
     });
   }, [tasks]);
 
-
-  const handleGetAiSchedule = async () => {
-    setIsAiModalOpen(true);
-    setIsAiLoading(true);
-    setAiSchedule(null);
-    try {
-      const tasksForAISuggestion = activeTasks.filter(task => !task.completed);
-      const schedule = await getAiScheduleAction(tasksForAISuggestion);
-      setAiSchedule(schedule);
-    } catch (error) {
-      setAiSchedule('AI 스케줄을 가져오는 중 오류가 발생했습니다.');
-      toast({ title: "AI 스케줄 오류", description: "스케줄 추천을 받는 중 문제가 발생했습니다.", variant: "destructive" });
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
+  // Removed handleGetAiSchedule function
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -600,12 +580,12 @@ export default function HomePage() {
           </DialogContent>
         </Dialog>
 
-
-        <div className="mb-8 flex justify-end">
+        {/* AI 스케줄 추천 받기 버튼 제거됨 */}
+        {/* <div className="mb-8 flex justify-end">
           <Button onClick={handleGetAiSchedule} size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transform hover:scale-105 transition-transform duration-150">
             <Wand2 className="mr-2 h-6 w-6" /> AI 스케줄 추천 받기
           </Button>
-        </div>
+        </div> */}
 
         <TaskList
           tasks={activeTasks}
@@ -654,13 +634,7 @@ export default function HomePage() {
         © {new Date().getFullYear()} 스케줄 비서. AI로 더 스마트하게.
       </footer>
 
-      <AiSchedulerModal
-        isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        scheduleSuggestion={aiSchedule}
-        isLoading={isAiLoading}
-      />
+      {/* AiSchedulerModal removed */}
     </div>
   );
 }
-

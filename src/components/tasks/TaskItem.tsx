@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Edit3, Trash2, User, CalendarClock, AlertTriangle, Bell, BellOff, CheckCircle2, Undo2 } from 'lucide-react'; // CheckCircle2, Undo2 추가
+import { Edit3, Trash2, User, CalendarClock, AlertTriangle, Bell, BellOff, CheckCircle2, Undo2, StickyNote } from 'lucide-react'; // StickyNote 추가
 import { format, isPast, isToday, differenceInCalendarDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -46,10 +46,10 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
     deadlineBadgeVariant = "destructive";
     deadlineText = `마감 초과! - ${deadlineText}`;
   } else if (isTaskDueToday) {
-    deadlineBadgeVariant = "outline"; 
+    deadlineBadgeVariant = "outline";
     deadlineText = `오늘 마감! - ${deadlineText}`;
   } else if (daysRemaining >= 0 && daysRemaining <= 3) {
-     deadlineBadgeVariant = "outline"; 
+     deadlineBadgeVariant = "outline";
      deadlineText = `${daysRemaining}일 남음 - ${deadlineText}`;
   }
 
@@ -58,17 +58,17 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
   useEffect(() => {
     registerRef(task.id, cardRef.current);
     return () => {
-      registerRef(task.id, null); 
+      registerRef(task.id, null);
     };
   }, [task.id, registerRef]);
 
 
   return (
-    <Card 
+    <Card
       ref={cardRef}
       className={cn(
-        "shadow-lg transition-all duration-300", 
-        task.completed ? 'bg-muted/50 opacity-70' : 'bg-card', 
+        "shadow-lg transition-all duration-300",
+        task.completed ? 'bg-muted/50 opacity-70' : 'bg-card',
         isTaskOverdue ? "border-destructive" : (isTaskDueToday || (daysRemaining >=0 && daysRemaining <=3 && !task.completed)) ? "border-accent" : "",
         isHighlighted && 'task-highlight'
       )}
@@ -101,6 +101,12 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
           <CalendarClock className="h-4 w-4 mr-2 text-accent" />
           마감일: <Badge variant={deadlineBadgeVariant} className={cn("ml-1", (isTaskDueToday || (daysRemaining >=0 && daysRemaining <=3 && !task.completed)) && "border-accent text-accent")}>{deadlineText}</Badge>
         </div>
+        {task.notes && (
+          <div className="flex items-start pt-1">
+            <StickyNote className="h-4 w-4 mr-2 text-accent mt-0.5" />
+            <p className="whitespace-pre-wrap break-words text-sm">{task.notes}</p>
+          </div>
+        )}
         <div className="flex items-center space-x-2 pt-2">
           <Switch
             id={`reminder-${task.id}`}
@@ -122,8 +128,8 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
             aria-label={task.completed ? "업무를 미완료로 표시" : "업무를 완료로 표시"}
             className={cn(
                 "transition-colors",
-                task.completed 
-                ? "border-yellow-500 text-yellow-600 hover:bg-yellow-500/10 focus:ring-yellow-400" 
+                task.completed
+                ? "border-yellow-500 text-yellow-600 hover:bg-yellow-500/10 focus:ring-yellow-400"
                 : "border-green-500 text-green-600 hover:bg-green-500/10 focus:ring-green-400"
             )}
         >
@@ -140,5 +146,3 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
     </Card>
   );
 }
-
-    
