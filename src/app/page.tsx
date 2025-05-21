@@ -18,7 +18,7 @@ import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
 import type { DayContentProps, DayModifiers } from 'react-day-picker';
 import { cn } from '@/lib/utils';
-import { Checkbox } from "@/components/ui/checkbox"; // 추가된 import
+import { Checkbox } from "@/components/ui/checkbox";
 
 const assigneeColors: Record<string, string> = {
   '최준원': 'bg-sky-200 text-sky-800',
@@ -85,10 +85,6 @@ export default function HomePage() {
   const assigneesByDate = useMemo(() => {
     const map = new Map<string, string[]>();
     tasks.forEach(task => {
-      // 달력에는 완료 여부와 관계없이 마감일 기준으로 담당자를 표시할 수 있으나,
-      // 체크박스 로직 등을 위해 미완료 업무만 고려하는 것이 좋을 수도 있습니다.
-      // 현재는 모든 업무의 담당자를 표시하도록 되어 있습니다.
-      // if (!task.completed) { 
         try {
           const deadlineDate = parseDeadline(task.deadline);
           const dateStr = format(deadlineDate, 'yyyy-MM-dd');
@@ -102,7 +98,6 @@ export default function HomePage() {
         } catch (e) {
           console.error("Error processing task deadline for calendar:", task.deadline, e);
         }
-      // }
     });
     return map;
   }, [tasks]);
@@ -134,7 +129,7 @@ export default function HomePage() {
       description: `${assignee}님의 ${dateStr} 마감 업무 ${tasksToComplete.length}개가 완료 처리되었습니다.`,
       variant: "default",
     });
-    setHighlightedTaskIds([]); // 하이라이트 제거
+    setHighlightedTaskIds([]); 
   }, [tasks, toast]);
 
 
@@ -163,14 +158,14 @@ export default function HomePage() {
                   <Checkbox
                     id={`cal-task-complete-${dateStr}-${assignee}`}
                     checked={areAllTasksCompleted}
-                    disabled={!hasIncompleteTasks} // 모든 업무가 이미 완료되었거나, 업무가 아예 없으면 비활성화
+                    disabled={!hasIncompleteTasks}
                     onCheckedChange={() => {
                       if (hasIncompleteTasks) {
                         handleCalendarBatchComplete(dateStr, assignee);
                       }
                     }}
-                    onClick={(e) => e.stopPropagation()} // 이벤트 전파 중지
-                    className="mr-1.5 h-3.5 w-3.5 border-slate-500 data-[state=checked]:bg-green-500 data-[state=checked]:text-white data-[state=checked]:border-green-600 shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                    className="mr-1.5 h-3.5 w-3.5 bg-white border-neutral-400 data-[state=checked]:bg-green-500 data-[state=checked]:text-white data-[state=checked]:border-green-500 shrink-0"
                     aria-label={`${assignee} ${dateStr} 업무 일괄 완료`}
                   />
                   <div
@@ -182,7 +177,6 @@ export default function HomePage() {
                     title={tasksForThisAssigneeOnThisDay || assignee}
                      onClick={(e) => {
                         e.stopPropagation();
-                        // 날짜와 담당자 정보를 함께 사용하여 정확한 하이라이팅
                         const tasksToHighlight = tasks.filter(
                             task => task.deadline === dateStr && task.assignee === assignee && !task.completed
                         );
@@ -208,7 +202,7 @@ export default function HomePage() {
         )}
       </div>
     );
-  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete]);
+  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, highlightedTaskIds]); // highlightedTaskIds 추가
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
     if (modifiers.outside || modifiers.disabled) {
@@ -216,16 +210,14 @@ export default function HomePage() {
     }
     const clickedDateStr = format(day, 'yyyy-MM-dd');
     
-    // Check if the click was on an assignee badge by looking for data-assignee on target or parents
     let specificAssignee: string | undefined = undefined;
     let currentElement = event.target as HTMLElement | null;
     while (currentElement && !specificAssignee) {
         if (currentElement.dataset && currentElement.dataset.assignee) {
             specificAssignee = currentElement.dataset.assignee;
         }
-        // Check if we hit a checkbox or its parent, stop propagation if so
         if (currentElement.role === 'checkbox' || currentElement.querySelector('[role="checkbox"]')) {
-          return; // Stop if click originated from checkbox or its container to avoid double action
+          return; 
         }
         currentElement = currentElement.parentElement;
     }
@@ -325,11 +317,11 @@ export default function HomePage() {
         task.id === id ? { ...task, enableReminders: !task.enableReminders } : task
       )
     );
-     const updatedTask = tasks.find(t => t.id === id); // This will find the task *before* the state update finishes if not careful
-     if (updatedTask) { // updatedTask here refers to the task *before* toggling enableReminders state
+     const updatedTask = tasks.find(t => t.id === id); 
+     if (updatedTask) { 
         toast({
             title: "알림 설정 변경",
-            description: `"${updatedTask.name}" 업무의 알림이 ${!updatedTask.enableReminders ? "활성화" : "비활성화"}되었습니다.` // Logic needs to be based on the *new* state
+            description: `"${updatedTask.name}" 업무의 알림이 ${!updatedTask.enableReminders ? "활성화" : "비활성화"}되었습니다.`
         });
      }
   };
@@ -457,5 +449,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
