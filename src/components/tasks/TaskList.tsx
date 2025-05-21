@@ -1,10 +1,12 @@
+
 'use client';
 
 import type { Task } from '@/lib/types';
 import { TaskItem } from './TaskItem';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useState } from 'react';
-import { ListFilter, Inbox } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ListFilter, Inbox, User } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface TaskListProps {
   tasks: Task[];
@@ -14,27 +16,43 @@ interface TaskListProps {
   onToggleReminder: (id: string) => void;
 }
 
-type SortOption = 'deadline' | 'assignee' | 'priority' | 'default';
+type SortOption = 'deadline' | 'priority' | 'default'; // Removed 'assignee' as tasks are now grouped by assignee
 
 export function TaskList({ tasks, ...itemProps }: TaskListProps) {
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
-  const sortedTasks = [...tasks].sort((a, b) => {
-    if (a.completed && !b.completed) return 1;
-    if (!a.completed && b.completed) return -1;
+  const groupedAndSortedTasks = useMemo(() => {
+    // Group tasks by assignee
+    const groupedByAssignee: Record<string, Task[]> = tasks.reduce((acc, task) => {
+      const assigneeKey = task.assignee || '미지정'; // Handle tasks with no assignee
+      if (!acc[assigneeKey]) {
+        acc[assigneeKey] = [];
+      }
+      acc[assigneeKey].push(task);
+      return acc;
+    }, {} as Record<string, Task[]>);
 
-    switch (sortOption) {
-      case 'deadline':
-        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-      case 'assignee':
-        return a.assignee.localeCompare(b.assignee);
-      case 'priority':
-        const priorityOrder = { high: 0, medium: 1, low: 2 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
-      default: // 'default' or creation order (implicitly handled by not re-sorting if IDs are sequential)
-        return 0; 
+    // Sort tasks within each group
+    for (const assignee in groupedByAssignee) {
+      groupedByAssignee[assignee].sort((a, b) => {
+        if (a.completed && !b.completed) return 1;
+        if (!a.completed && b.completed) return -1;
+
+        switch (sortOption) {
+          case 'deadline':
+            return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+          case 'priority':
+            const priorityOrder = { high: 0, medium: 1, low: 2 };
+            return priorityOrder[a.priority] - priorityOrder[b.priority];
+          default: // 'default' or creation order
+            return 0;
+        }
+      });
     }
-  });
+    return groupedByAssignee;
+  }, [tasks, sortOption]);
+
+  const assignees = Object.keys(groupedAndSortedTasks).sort();
 
   if (tasks.length === 0) {
     return (
@@ -47,7 +65,7 @@ export function TaskList({ tasks, ...itemProps }: TaskListProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex justify-end items-center">
         <ListFilter className="h-5 w-5 mr-2 text-muted-foreground" />
         <Select value={sortOption} onValueChange={(value) => setSortOption(value as SortOption)}>
@@ -57,16 +75,31 @@ export function TaskList({ tasks, ...itemProps }: TaskListProps) {
           <SelectContent>
             <SelectItem value="default">기본 정렬</SelectItem>
             <SelectItem value="deadline">마감일 순</SelectItem>
-            <SelectItem value="assignee">담당자 순</SelectItem>
             <SelectItem value="priority">중요도 순</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sortedTasks.map((task) => (
-          <TaskItem key={task.id} task={task} {...itemProps} />
-        ))}
-      </div>
+      {assignees.map(assignee => (
+        <Card key={assignee} className="shadow-lg border-border">
+          <CardHeader className="bg-muted/30">
+            <CardTitle className="text-xl flex items-center">
+              <User className="h-6 w-6 mr-3 text-primary" />
+              {assignee}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {groupedAndSortedTasks[assignee].length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {groupedAndSortedTasks[assignee].map((task) => (
+                  <TaskItem key={task.id} task={task} {...itemProps} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground">이 담당자에게는 현재 할당된 업무가 없습니다.</p>
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
