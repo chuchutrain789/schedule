@@ -50,6 +50,10 @@ export default function HomePage() {
   const archivedSectionRef = useRef<HTMLDivElement>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<Task[]>([]);
+  const [isAutocompleteDropdownOpen, setIsAutocompleteDropdownOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteDropdownRef = useRef<HTMLDivElement>(null);
 
 
   const registerTaskItemRef = useCallback((id: string, element: HTMLDivElement | null) => {
@@ -133,6 +137,7 @@ export default function HomePage() {
 
 
   const parseDeadline = (deadlineStr: string): Date => {
+    // Ensures YYYY-MM-DD is parsed as local date, not UTC
     const parts = deadlineStr.split('-').map(Number);
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
@@ -320,10 +325,23 @@ export default function HomePage() {
       const elementToScrollTo = taskItemRefs.current.get(firstHighlightedId);
 
       if (elementToScrollTo) {
-        elementToScrollTo.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
+        // Check if the task is in the archived section and if that section is closed
+        const isArchived = archivedTasksToDisplay.some(task => task.id === firstHighlightedId);
+        if (isArchived && openAccordionItem !== "archived-tasks") {
+          setOpenAccordionItem("archived-tasks");
+          // Scroll after accordion opens
+          setTimeout(() => {
+            elementToScrollTo.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center',
+            });
+          }, 300); // Adjust timing if needed for accordion animation
+        } else {
+           elementToScrollTo.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }
       }
 
       const timer = setTimeout(() => {
@@ -332,7 +350,7 @@ export default function HomePage() {
 
       return () => clearTimeout(timer);
     }
-  }, [highlightedTaskIds]);
+  }, [highlightedTaskIds, openAccordionItem]); // Added openAccordionItem
 
 
   const handleAddTask = (newTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders' | 'completionDate'>) => {
@@ -467,6 +485,48 @@ export default function HomePage() {
   }, [baseArchivedTasksToDisplay, searchTerm]);
 
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newSearchTerm = e.target.value;
+    setSearchTerm(newSearchTerm);
+
+    if (newSearchTerm.trim() === '') {
+      setAutocompleteSuggestions([]);
+      setIsAutocompleteDropdownOpen(false);
+    } else {
+      const filtered = tasks.filter(task =>
+        task.name.toLowerCase().includes(newSearchTerm.toLowerCase())
+      );
+      setAutocompleteSuggestions(filtered.slice(0, 5)); // Show max 5 suggestions
+      setIsAutocompleteDropdownOpen(filtered.length > 0);
+    }
+  };
+
+  const handleAutocompleteItemClick = (task: Task) => {
+    setSearchTerm(task.name);
+    setAutocompleteSuggestions([]);
+    setIsAutocompleteDropdownOpen(false);
+    setHighlightedTaskIds([task.id]);
+    // searchInputRef.current?.focus(); // Optionally focus input after selection
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node) &&
+        autocompleteDropdownRef.current &&
+        !autocompleteDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsAutocompleteDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <AppHeader />
@@ -478,14 +538,39 @@ export default function HomePage() {
               업무 검색
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 relative">
             <Input
+              ref={searchInputRef}
               type="search"
               placeholder="검색할 업무명을 입력하세요..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
+              onFocus={() => {
+                if (searchTerm.trim() !== '' && autocompleteSuggestions.length > 0) {
+                  setIsAutocompleteDropdownOpen(true);
+                }
+              }}
               className="w-full text-base"
             />
+            {isAutocompleteDropdownOpen && autocompleteSuggestions.length > 0 && (
+              <div
+                ref={autocompleteDropdownRef}
+                className="absolute top-full left-0 right-0 mt-1 w-full bg-card border border-border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+              >
+                {autocompleteSuggestions.map(task => (
+                  <div
+                    key={task.id}
+                    onClick={() => handleAutocompleteItemClick(task)}
+                    className="p-3 hover:bg-accent hover:text-accent-foreground cursor-pointer text-sm"
+                  >
+                    {task.name}
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({task.assignee} - {format(parseDeadline(task.deadline), 'MM/dd')})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
         
