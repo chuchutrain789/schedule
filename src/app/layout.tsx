@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: '스케줄 비서',
+  title: '개롱초 연구학교 스케줄 비서',
   description: '개인 및 업무 스케줄을 효율적으로 관리하고 AI 추천을 받아보세요.',
 };
 

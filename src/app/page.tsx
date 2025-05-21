@@ -660,7 +660,7 @@ export default function HomePage() {
 
       </main>
       <footer className="text-center py-6 border-t text-sm text-muted-foreground">
-        © {new Date().getFullYear()} 스케줄 비서. AI로 더 스마트하게.
+        © {new Date().getFullYear()} 개롱초 연구학교 스케줄 비서. AI로 더 스마트하게.
       </footer>
     </div>
   );
