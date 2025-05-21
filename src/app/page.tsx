@@ -12,7 +12,6 @@ import { AppHeader } from '@/components/common/Header';
 import { AiSchedulerModal } from '@/components/tasks/AiSchedulerModal';
 import { getAiScheduleAction } from './actions';
 import { useToast } from '@/hooks/use-toast';
-import { v4 as uuidv4 } from 'uuid'; // For generating unique IDs
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -27,7 +26,17 @@ export default function HomePage() {
   useEffect(() => {
     const storedTasks = localStorage.getItem('tasks');
     if (storedTasks) {
-      setTasks(JSON.parse(storedTasks));
+      try {
+        const parsedTasks = JSON.parse(storedTasks);
+        if (Array.isArray(parsedTasks)) {
+          setTasks(parsedTasks);
+        } else {
+          setTasks([]);
+        }
+      } catch (error) {
+        console.error("Error parsing tasks from localStorage:", error);
+        setTasks([]);
+      }
     }
   }, []);
 
@@ -39,7 +48,7 @@ export default function HomePage() {
   const handleAddTask = (newTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders'>) => {
     const newTask: Task = {
       ...newTaskData,
-      id: uuidv4(),
+      id: crypto.randomUUID(), // Changed from uuidv4()
       completed: false,
       enableReminders: true, // Default to true
     };
