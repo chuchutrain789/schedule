@@ -416,15 +416,13 @@ export default function HomePage() {
     const today = startOfToday();
     return tasks.filter(task => {
       if (!task.completed) return true;
-      if (!task.completionDate) return true; // Should not happen if completed is true
+      if (!task.completionDate) return true; 
       try {
         const completionD = parseISO(task.completionDate);
-        // Keep tasks completed 'today' in the active list.
-        // A task is archived if it's completed *before* today.
         return differenceInCalendarDays(today, completionD) < 1;
       } catch (e) {
         console.error("Error parsing completionDate for activeTasks filter:", task.completionDate, e);
-        return true; // Keep in active if parsing fails, to be safe
+        return true; 
       }
     });
   }, [tasks]);
@@ -444,13 +442,12 @@ export default function HomePage() {
       if (!task.completed || !task.completionDate) return false;
       try {
         const completionD = parseISO(task.completionDate);
-        // Archive if completed *at least one day ago* (i.e., yesterday or earlier)
         return differenceInCalendarDays(today, completionD) >= 1;
       } catch (e) {
         console.error("Error parsing completionDate for archivedTasksToDisplay filter:", task.completionDate, e);
-        return false; // Don't archive if parsing fails
+        return false; 
       }
-    }).sort((a, b) => { // Sort by completion date, newest archived first
+    }).sort((a, b) => { 
         if (!a.completionDate || !b.completionDate) return 0;
         try {
             return parseISO(b.completionDate).getTime() - parseISO(a.completionDate).getTime();
@@ -474,6 +471,24 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-background">
       <AppHeader />
       <main className="flex-grow container mx-auto px-4 py-8">
+        <Card className="mb-8 shadow-lg border-border">
+          <CardHeader className="bg-muted/30">
+            <CardTitle className="text-xl flex items-center">
+              <SearchIcon className="h-6 w-6 mr-3 text-primary" />
+              업무 검색
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Input
+              type="search"
+              placeholder="검색할 업무명을 입력하세요..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full text-base"
+            />
+          </CardContent>
+        </Card>
+        
         <Card className="mb-8 shadow-xl border-primary/20 border-2">
           <CardHeader className="pb-4">
              <CardTitle className="text-xl flex items-center text-primary-foreground bg-primary p-3 rounded-lg shadow-md">
@@ -599,36 +614,20 @@ export default function HomePage() {
           </DialogContent>
         </Dialog>
 
-        <Card className="mb-8 shadow-lg border-border">
-          <CardHeader className="bg-muted/30">
-            <CardTitle className="text-xl flex items-center">
-              <SearchIcon className="h-6 w-6 mr-3 text-primary" />
-              업무 검색
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Input
-              type="search"
-              placeholder="검색할 업무명을 입력하세요..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full text-base"
-            />
-          </CardContent>
-        </Card>
-
-        <TaskList
-          tasks={activeTasks}
-          onToggleComplete={handleToggleComplete}
-          onDelete={handleDeleteTask}
-          onEdit={openEditModal}
-          onToggleReminder={handleToggleReminder}
-          highlightedTaskIds={highlightedTaskIds}
-          registerTaskItemRef={registerTaskItemRef}
-        />
+        <div className="min-h-96">
+          <TaskList
+            tasks={activeTasks}
+            onToggleComplete={handleToggleComplete}
+            onDelete={handleDeleteTask}
+            onEdit={openEditModal}
+            onToggleReminder={handleToggleReminder}
+            highlightedTaskIds={highlightedTaskIds}
+            registerTaskItemRef={registerTaskItemRef}
+          />
+        </div>
 
         <div ref={archivedSectionRef}>
-          {baseArchivedTasksToDisplay.length > 0 && ( // Show accordion if there are any base archived tasks
+          {baseArchivedTasksToDisplay.length > 0 && ( 
             <Accordion
               type="single"
               collapsible
