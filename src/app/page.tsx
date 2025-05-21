@@ -72,6 +72,7 @@ export default function HomePage() {
 
   const parseDeadline = (deadlineStr: string): Date => {
     const parts = deadlineStr.split('-').map(Number);
+    // Ensure month is 0-indexed for Date constructor
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
 
@@ -84,7 +85,7 @@ export default function HomePage() {
   const assigneesByDate = useMemo(() => {
     const map = new Map<string, string[]>();
     tasks.forEach(task => {
-      if (!task.completed) {
+      if (!task.completed) { // Only consider incomplete tasks for badges
         try {
           const deadlineDate = parseDeadline(task.deadline);
           const dateStr = format(deadlineDate, 'yyyy-MM-dd');
@@ -113,19 +114,26 @@ export default function HomePage() {
         <span className="text-sm">{dayOfMonth}</span>
         {assigneesForDay.length > 0 && (
           <div className="flex flex-col items-center space-y-0.5 mt-1 overflow-hidden w-full">
-            {assigneesForDay.slice(0, 3).map((assignee) => (
-              <div
-                key={assignee}
-                data-assignee={assignee} // Added for click handling
-                className={cn(
-                  "text-xs font-semibold leading-snug px-2 py-0.5 rounded-md truncate w-[90%] max-w-[calc(100%-8px)] cursor-pointer transition-opacity hover:opacity-75", 
-                  assigneeColors[assignee] || assigneeColors['미지정']
-                )}
-                title={assignee} 
-              >
-                {assignee}
-              </div>
-            ))}
+            {assigneesForDay.slice(0, 3).map((assignee) => {
+              const tasksForThisAssigneeOnThisDay = tasks
+                .filter(t => t.deadline === dateStr && t.assignee === assignee)
+                .map(t => t.name)
+                .join('\n'); // Use newline for multi-line tooltips
+
+              return (
+                <div
+                  key={assignee}
+                  data-assignee={assignee}
+                  className={cn(
+                    "text-xs font-semibold leading-snug px-2 py-0.5 rounded-md truncate w-[90%] max-w-[calc(100%-8px)] cursor-pointer transition-opacity hover:opacity-75",
+                    assigneeColors[assignee] || assigneeColors['미지정']
+                  )}
+                  title={tasksForThisAssigneeOnThisDay || assignee}
+                >
+                  {assignee}
+                </div>
+              );
+            })}
             {assigneesForDay.length > 3 && (
                 <div className="text-[0.6rem] text-muted-foreground mt-0.5" title={assigneesForDay.slice(3).join(', ')}>
                     +{assigneesForDay.length - 3} more
@@ -135,7 +143,7 @@ export default function HomePage() {
         )}
       </div>
     );
-  }, [assigneesByDate]);
+  }, [assigneesByDate, tasks]); // Added tasks to dependency array for tooltip
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
     if (modifiers.outside || modifiers.disabled) {
@@ -145,7 +153,6 @@ export default function HomePage() {
     
     let specificAssignee: string | undefined = undefined;
     const targetElement = event.target as HTMLElement;
-    // Traverse up to find the element with data-assignee, or the cell itself
     const assigneeBadge = targetElement.closest('[data-assignee]') as HTMLElement | null;
 
     if (assigneeBadge && assigneeBadge.dataset.assignee) {
@@ -281,8 +288,8 @@ export default function HomePage() {
           </CardHeader>
           <CardContent className="flex justify-center p-2 sm:p-4">
             <Calendar
-              mode="multiple"
-              selected={dueDates}
+              mode="multiple" // Keeps multiple days selected (due dates)
+              selected={dueDates} // Visually mark due dates
               month={currentMonth}
               onMonthChange={setCurrentMonth}
               onDayClick={handleDayClick}
@@ -295,9 +302,9 @@ export default function HomePage() {
                 head_row: "flex w-full mt-1 md:mt-2",
                 head_cell: cn("text-muted-foreground rounded-md w-16 md:w-20 lg:w-24 font-normal text-xs flex items-center justify-center p-1"),
                 row: "flex w-full mt-1 md:mt-2", 
-                cell: cn("h-20 w-16 md:h-24 md:w-20 lg:h-28 lg:w-24 text-center relative rounded-md p-0"),
-                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"),
-                day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"),
+                cell: cn("h-20 w-16 md:h-24 md:w-20 lg:h-28 lg:w-24 text-center relative rounded-md p-0"), // Increased height
+                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"), // Ensure day takes full cell
+                day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"), // Style for due dates
                 day_today: cn("!bg-primary/30 !text-primary-foreground font-semibold"),
                 day_outside: cn("text-muted-foreground/50 !opacity-50"),
               }}
