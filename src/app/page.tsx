@@ -10,11 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Calendar as CalendarIconShad, PlusSquare, UserCog, X, Archive } from 'lucide-react'; // Wand2 removed
+import { Calendar as CalendarIconShad, PlusSquare, UserCog, X, Archive, Search as SearchIcon } from 'lucide-react';
 import { AppHeader } from '@/components/common/Header';
-// AiSchedulerModal and getAiScheduleAction imports removed
 import { useToast } from '@/hooks/use-toast';
-import { Calendar } from '@/components/ui/calendar'; // Shadcn Calendar
+import { Calendar } from '@/components/ui/calendar';
 import { ko } from 'date-fns/locale';
 import { format, parseISO, differenceInCalendarDays, startOfToday } from 'date-fns';
 import type { DayContentProps, DayModifiers } from 'react-day-picker';
@@ -39,7 +38,6 @@ export default function HomePage() {
   const [assignees, setAssignees] = useState<string[]>(initialAssignees);
   const [isTaskFormModalOpen, setIsTaskFormModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  // AI Modal related states removed
   const { toast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<string[]>([]);
@@ -50,6 +48,8 @@ export default function HomePage() {
 
   const [openAccordionItem, setOpenAccordionItem] = useState<string | undefined>();
   const archivedSectionRef = useRef<HTMLDivElement>(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
 
 
   const registerTaskItemRef = useCallback((id: string, element: HTMLDivElement | null) => {
@@ -70,7 +70,7 @@ export default function HomePage() {
             ...task,
             deadline: String(task.deadline),
             completionDate: task.completionDate ? String(task.completionDate) : undefined,
-            notes: task.notes || undefined, // Ensure notes is loaded
+            notes: task.notes || undefined,
           })));
         } else {
           setTasks([]);
@@ -341,7 +341,6 @@ export default function HomePage() {
       id: crypto.randomUUID(),
       completed: false,
       enableReminders: true,
-      // notes field will be included from newTaskData if provided by TaskForm
     };
     setTasks((prevTasks) => [newTask, ...prevTasks]);
     setIsTaskFormModalOpen(false);
@@ -413,33 +412,45 @@ export default function HomePage() {
     setIsTaskFormModalOpen(true);
   }
 
-  const activeTasks = useMemo(() => {
+  const baseActiveTasks = useMemo(() => {
     const today = startOfToday();
     return tasks.filter(task => {
       if (!task.completed) return true;
-      if (!task.completionDate) return true;
+      if (!task.completionDate) return true; // Should not happen if completed is true
       try {
         const completionD = parseISO(task.completionDate);
+        // Keep tasks completed 'today' in the active list.
+        // A task is archived if it's completed *before* today.
         return differenceInCalendarDays(today, completionD) < 1;
       } catch (e) {
         console.error("Error parsing completionDate for activeTasks filter:", task.completionDate, e);
-        return true;
+        return true; // Keep in active if parsing fails, to be safe
       }
     });
   }, [tasks]);
 
-  const archivedTasksToDisplay = useMemo(() => {
+  const activeTasks = useMemo(() => {
+    if (searchTerm.trim() === '') {
+      return baseActiveTasks;
+    }
+    return baseActiveTasks.filter(task =>
+      task.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [baseActiveTasks, searchTerm]);
+
+  const baseArchivedTasksToDisplay = useMemo(() => {
     const today = startOfToday();
     return tasks.filter(task => {
       if (!task.completed || !task.completionDate) return false;
       try {
         const completionD = parseISO(task.completionDate);
+        // Archive if completed *at least one day ago* (i.e., yesterday or earlier)
         return differenceInCalendarDays(today, completionD) >= 1;
       } catch (e) {
         console.error("Error parsing completionDate for archivedTasksToDisplay filter:", task.completionDate, e);
-        return false;
+        return false; // Don't archive if parsing fails
       }
-    }).sort((a, b) => {
+    }).sort((a, b) => { // Sort by completion date, newest archived first
         if (!a.completionDate || !b.completionDate) return 0;
         try {
             return parseISO(b.completionDate).getTime() - parseISO(a.completionDate).getTime();
@@ -449,7 +460,15 @@ export default function HomePage() {
     });
   }, [tasks]);
 
-  // Removed handleGetAiSchedule function
+  const archivedTasksToDisplay = useMemo(() => {
+    if (searchTerm.trim() === '') {
+      return baseArchivedTasksToDisplay;
+    }
+    return baseArchivedTasksToDisplay.filter(task =>
+      task.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [baseArchivedTasksToDisplay, searchTerm]);
+
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -511,10 +530,10 @@ export default function HomePage() {
                   }}
                   variant="outline"
                   className="shadow-md"
-                  disabled={archivedTasksToDisplay.length === 0}
+                  disabled={baseArchivedTasksToDisplay.length === 0}
                 >
                   <Archive className="mr-2 h-5 w-5" />
-                  지난 업무 보기 ({archivedTasksToDisplay.length})
+                  지난 업무 보기 ({baseArchivedTasksToDisplay.length})
                 </Button>
                 <Button onClick={openNewTaskModal} variant="default" className="bg-accent hover:bg-accent/80 text-accent-foreground shadow-md">
                   <PlusSquare className="mr-2 h-5 w-5" /> 업무 추가하기
@@ -580,12 +599,23 @@ export default function HomePage() {
           </DialogContent>
         </Dialog>
 
-        {/* AI 스케줄 추천 받기 버튼 제거됨 */}
-        {/* <div className="mb-8 flex justify-end">
-          <Button onClick={handleGetAiSchedule} size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transform hover:scale-105 transition-transform duration-150">
-            <Wand2 className="mr-2 h-6 w-6" /> AI 스케줄 추천 받기
-          </Button>
-        </div> */}
+        <Card className="mb-8 shadow-lg border-border">
+          <CardHeader className="bg-muted/30">
+            <CardTitle className="text-xl flex items-center">
+              <SearchIcon className="h-6 w-6 mr-3 text-primary" />
+              업무 검색
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Input
+              type="search"
+              placeholder="검색할 업무명을 입력하세요..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full text-base"
+            />
+          </CardContent>
+        </Card>
 
         <TaskList
           tasks={activeTasks}
@@ -598,7 +628,7 @@ export default function HomePage() {
         />
 
         <div ref={archivedSectionRef}>
-          {archivedTasksToDisplay.length > 0 && (
+          {baseArchivedTasksToDisplay.length > 0 && ( // Show accordion if there are any base archived tasks
             <Accordion
               type="single"
               collapsible
@@ -610,7 +640,7 @@ export default function HomePage() {
                 <AccordionTrigger className="text-lg font-semibold text-primary hover:no-underline py-3 px-4 rounded-md bg-muted/50 hover:bg-muted/70 transition-colors">
                   <div className="flex items-center">
                     <Archive className="mr-3 h-6 w-6 text-primary/80" />
-                    지난 업무 목록 ({archivedTasksToDisplay.length}개)
+                    지난 업무 목록 ({archivedTasksToDisplay.length > 0 ? archivedTasksToDisplay.length : baseArchivedTasksToDisplay.length}개{searchTerm && ` 중 ${archivedTasksToDisplay.length}개 일치`})
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="pt-4">
@@ -633,8 +663,6 @@ export default function HomePage() {
       <footer className="text-center py-6 border-t text-sm text-muted-foreground">
         © {new Date().getFullYear()} 스케줄 비서. AI로 더 스마트하게.
       </footer>
-
-      {/* AiSchedulerModal removed */}
     </div>
   );
 }
