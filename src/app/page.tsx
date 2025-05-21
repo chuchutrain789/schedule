@@ -17,7 +17,7 @@ import { getAiScheduleAction } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar'; // Shadcn Calendar
 import { ko } from 'date-fns/locale';
-import { format, parseISO, differenceInCalendarDays } from 'date-fns';
+import { format, parseISO, differenceInCalendarDays, startOfToday } from 'date-fns';
 import type { DayContentProps, DayModifiers } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -135,9 +135,12 @@ export default function HomePage() {
 
 
   const parseDeadline = (deadlineStr: string): Date => {
+    // Assuming deadlineStr is 'YYYY-MM-DD'
     const parts = deadlineStr.split('-').map(Number);
+    // new Date(year, monthIndex, day) - monthIndex is 0-based
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
+
 
   const dueDates = useMemo(() => {
     return tasks
@@ -192,7 +195,7 @@ export default function HomePage() {
       description: `${assignee}님의 ${dateStr} 마감 업무 ${tasksToComplete.length}개가 완료 처리되었습니다.`,
       variant: "default",
     });
-    setHighlightedTaskIds([]); 
+    setHighlightedTaskIds([]);
   }, [tasks, toast]);
 
 
@@ -211,7 +214,7 @@ export default function HomePage() {
                 .filter(t => t.deadline === dateStr && t.assignee === assignee)
                 .map(t => t.name)
                 .join('\n');
-              
+
               const allTasksForAssigneeOnDay = tasks.filter(t => t.deadline === dateStr && t.assignee === assignee);
               const areAllTasksCompleted = allTasksForAssigneeOnDay.length > 0 && allTasksForAssigneeOnDay.every(t => t.completed);
               const hasIncompleteTasks = allTasksForAssigneeOnDay.some(t => !t.completed);
@@ -227,7 +230,7 @@ export default function HomePage() {
                         handleCalendarBatchComplete(dateStr, assignee);
                       }
                     }}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()} // Prevent day click when checkbox is clicked
                     className="mr-1.5 h-3.5 w-3.5 bg-white border-neutral-400 data-[state=checked]:bg-green-500 data-[state=checked]:text-white data-[state=checked]:border-green-500 shrink-0"
                     aria-label={`${assignee} ${dateStr} 업무 일괄 완료`}
                   />
@@ -239,7 +242,7 @@ export default function HomePage() {
                     )}
                     title={tasksForThisAssigneeOnThisDay || assignee}
                      onClick={(e) => {
-                        e.stopPropagation();
+                        e.stopPropagation(); // Prevent day click when assignee badge is clicked
                         const tasksToHighlight = tasks.filter(
                             task => task.deadline === dateStr && task.assignee === assignee && !task.completed
                         );
@@ -265,26 +268,37 @@ export default function HomePage() {
         )}
       </div>
     );
-  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, assignees]);
+  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, assignees]); // assignees added to dependency array
+
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
     if (modifiers.outside || modifiers.disabled) {
       return;
     }
     const clickedDateStr = format(day, 'yyyy-MM-dd');
-    
+
     let specificAssignee: string | undefined = undefined;
     let currentElement = event.target as HTMLElement | null;
-    while (currentElement && !specificAssignee) {
-        if (currentElement.dataset && currentElement.dataset.assignee) {
+
+    // Traverse up the DOM tree to find if a specific assignee badge was clicked
+    // and to check if the click originated from a checkbox (to prevent highlighting)
+    let clickOnCheckbox = false;
+    while (currentElement) {
+        if (currentElement.dataset && currentElement.dataset.assignee && !specificAssignee) {
             specificAssignee = currentElement.dataset.assignee;
         }
-        if (currentElement.role === 'checkbox' || currentElement.querySelector('[role="checkbox"]')) {
-          return; 
+        if (currentElement.role === 'checkbox' || (currentElement.tagName === 'INPUT' && currentElement.getAttribute('type') === 'checkbox') || currentElement.querySelector('[role="checkbox"]')) {
+          clickOnCheckbox = true;
+          break; // If checkbox is part of the click target, stop and don't highlight
         }
+        if (currentElement === event.currentTarget) break; // Stop if we reach the day cell itself
         currentElement = currentElement.parentElement;
     }
-    
+
+    if (clickOnCheckbox) {
+      return; // Do nothing if the click was on a checkbox or its label part
+    }
+
     let tasksToConsider = tasks.filter(
       task => task.deadline === clickedDateStr && !task.completed
     );
@@ -297,7 +311,7 @@ export default function HomePage() {
       const idsToHighlight = tasksToConsider.map(t => t.id);
       setHighlightedTaskIds(idsToHighlight);
     } else {
-      setHighlightedTaskIds([]); 
+      setHighlightedTaskIds([]);
        if (specificAssignee) {
            toast({ title: "알림", description: `${specificAssignee}님의 해당 날짜에 완료되지 않은 업무가 없습니다.`});
        } else {
@@ -305,7 +319,7 @@ export default function HomePage() {
        }
     }
   };
-  
+
   useEffect(() => {
     if (highlightedTaskIds.length > 0) {
       const firstHighlightedId = highlightedTaskIds[0];
@@ -320,7 +334,7 @@ export default function HomePage() {
 
       const timer = setTimeout(() => {
         setHighlightedTaskIds([]);
-      }, 3000); 
+      }, 3000);
 
       return () => clearTimeout(timer);
     }
@@ -332,7 +346,7 @@ export default function HomePage() {
       ...newTaskData,
       id: crypto.randomUUID(),
       completed: false,
-      enableReminders: true, 
+      enableReminders: true,
     };
     setTasks((prevTasks) => [newTask, ...prevTasks]);
     setIsTaskFormModalOpen(false);
@@ -358,10 +372,10 @@ export default function HomePage() {
     const newCompletedState = !taskToToggle.completed;
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
-        task.id === id ? { 
-          ...task, 
-          completed: newCompletedState, 
-          completionDate: newCompletedState ? new Date().toISOString() : undefined 
+        task.id === id ? {
+          ...task,
+          completed: newCompletedState,
+          completionDate: newCompletedState ? new Date().toISOString() : undefined
         } : task
       )
     );
@@ -378,15 +392,15 @@ export default function HomePage() {
       toast({ title: "업무 삭제 완료", description: `"${taskToDelete.name}" 업무가 삭제되었습니다.`, variant: "destructive" });
     }
   };
-  
+
   const handleToggleReminder = (id: string) => {
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
         task.id === id ? { ...task, enableReminders: !task.enableReminders } : task
       )
     );
-     const updatedTask = tasks.find(t => t.id === id); 
-     if (updatedTask) { 
+     const updatedTask = tasks.find(t => t.id === id);
+     if (updatedTask) {
         toast({
             title: "알림 설정 변경",
             description: `"${updatedTask.name}" 업무의 알림이 ${!updatedTask.enableReminders ? "활성화" : "비활성화"}되었습니다.`
@@ -405,34 +419,32 @@ export default function HomePage() {
   }
 
   const activeTasks = useMemo(() => {
-    const today = new Date();
+    const today = startOfToday(); // Use startOfToday for consistency
     return tasks.filter(task => {
       if (!task.completed) return true;
-      if (!task.completionDate) return true; 
+      if (!task.completionDate) return true;
       try {
         const completionD = parseISO(task.completionDate);
-        // Keep if completed less than 1 calendar day ago (i.e., today)
-        return differenceInCalendarDays(today, completionD) < 1;
+        return differenceInCalendarDays(today, completionD) < 1; // Tasks completed today (diff 0) remain active
       } catch (e) {
         console.error("Error parsing completionDate for activeTasks filter:", task.completionDate, e);
-        return true; 
+        return true;
       }
     });
   }, [tasks]);
 
   const archivedTasksToDisplay = useMemo(() => {
-    const today = new Date();
+    const today = startOfToday(); // Use startOfToday for consistency
     return tasks.filter(task => {
       if (!task.completed || !task.completionDate) return false;
       try {
         const completionD = parseISO(task.completionDate);
-        // Archive if completed 1 or more calendar days ago
-        return differenceInCalendarDays(today, completionD) >= 1;
+        return differenceInCalendarDays(today, completionD) >= 1; // Tasks completed yesterday or earlier (diff >= 1) are archived
       } catch (e) {
         console.error("Error parsing completionDate for archivedTasksToDisplay filter:", task.completionDate, e);
-        return false; 
+        return false;
       }
-    }).sort((a, b) => { 
+    }).sort((a, b) => {
         if (!a.completionDate || !b.completionDate) return 0;
         try {
             return parseISO(b.completionDate).getTime() - parseISO(a.completionDate).getTime();
@@ -471,23 +483,23 @@ export default function HomePage() {
           </CardHeader>
           <CardContent className="flex justify-center p-2 sm:p-4">
             <Calendar
-              mode="multiple" 
-              selected={dueDates} 
+              mode="multiple"
+              selected={dueDates}
               month={currentMonth}
               onMonthChange={setCurrentMonth}
               onDayClick={handleDayClick}
               locale={ko}
-              className="rounded-md border shadow-inner bg-card p-2 md:p-3 w-full max-w-2xl" 
+              className="rounded-md border shadow-inner bg-card p-2 md:p-3 w-full max-w-2xl"
               classNames={{
                 caption_label: "text-lg font-semibold",
                 nav_button: "h-8 w-8",
-                month: "space-y-3 md:space-y-4", 
+                month: "space-y-3 md:space-y-4",
                 head_row: "flex w-full mt-1 md:mt-2",
                 head_cell: cn("text-muted-foreground rounded-md w-16 md:w-20 lg:w-24 font-normal text-xs flex items-center justify-center p-1"),
-                row: "flex w-full mt-1 md:mt-2", 
-                cell: cn("h-24 w-16 md:h-28 md:w-20 lg:h-32 lg:w-24 text-center relative rounded-md p-0"), 
-                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"), 
-                day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"), 
+                row: "flex w-full mt-1 md:mt-2",
+                cell: cn("h-24 w-16 md:h-28 md:w-20 lg:h-32 lg:w-24 text-center relative rounded-md p-0"),
+                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"),
+                day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"),
                 day_today: cn("!bg-primary/30 !text-primary-foreground font-semibold"),
                 day_outside: cn("text-muted-foreground/50 !opacity-50"),
               }}
@@ -497,7 +509,7 @@ export default function HomePage() {
             />
           </CardContent>
         </Card>
-        
+
         <Card className="mb-8 shadow-xl border-primary/20 border-2">
           <CardHeader className="pb-4">
             <div className="flex justify-between items-center flex-wrap gap-4">
@@ -604,12 +616,12 @@ export default function HomePage() {
           highlightedTaskIds={highlightedTaskIds}
           registerTaskItemRef={registerTaskItemRef}
         />
-        
+
         <div ref={archivedSectionRef}>
           {archivedTasksToDisplay.length > 0 && (
-            <Accordion 
-              type="single" 
-              collapsible 
+            <Accordion
+              type="single"
+              collapsible
               className="w-full mt-12"
               value={openAccordionItem}
               onValueChange={setOpenAccordionItem}
@@ -624,12 +636,12 @@ export default function HomePage() {
                 <AccordionContent className="pt-4">
                   <TaskList
                     tasks={archivedTasksToDisplay}
-                    onToggleComplete={handleToggleComplete} 
+                    onToggleComplete={handleToggleComplete}
                     onDelete={handleDeleteTask}
-                    onEdit={openEditModal} 
+                    onEdit={openEditModal}
                     onToggleReminder={handleToggleReminder}
-                    highlightedTaskIds={highlightedTaskIds} 
-                    registerTaskItemRef={registerTaskItemRef} 
+                    highlightedTaskIds={highlightedTaskIds}
+                    registerTaskItemRef={registerTaskItemRef}
                   />
                 </AccordionContent>
               </AccordionItem>
