@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
-const initialAssignees = ['최준원', '백옥주', '추효정', '추성욱', '신미경', '추상훈'];
+const initialAssignees = ['홍길동'];
 
 const assigneeColors: Record<string, string> = {
   '최준원': 'bg-sky-200 text-sky-800',
@@ -30,6 +30,7 @@ const assigneeColors: Record<string, string> = {
   '추성욱': 'bg-purple-200 text-purple-800',
   '신미경': 'bg-orange-200 text-orange-800',
   '추상훈': 'bg-teal-200 text-teal-800',
+  '홍길동': 'bg-indigo-200 text-indigo-800', // 홍길동 색상 추가
   '미지정': 'bg-gray-300 text-gray-800',
 };
 
@@ -89,12 +90,22 @@ export default function HomePage() {
     if (storedAssignees) {
       try {
         const parsedAssignees = JSON.parse(storedAssignees);
-        if (Array.isArray(parsedAssignees) && parsedAssignees.every(item => typeof item === 'string')) {
+        if (Array.isArray(parsedAssignees) && parsedAssignees.length > 0 && parsedAssignees.every(item => typeof item === 'string')) {
           setAssignees(parsedAssignees);
+        } else {
+          // localStorage에 유효한 담당자 목록이 없으면 initialAssignees 사용
+          setAssignees(initialAssignees);
+          localStorage.setItem('assignees', JSON.stringify(initialAssignees));
         }
       } catch (error) {
         console.error("Error parsing assignees from localStorage:", error);
+        setAssignees(initialAssignees);
+        localStorage.setItem('assignees', JSON.stringify(initialAssignees));
       }
+    } else {
+        // localStorage에 assignees 키 자체가 없으면 initialAssignees 사용 및 저장
+        setAssignees(initialAssignees);
+        localStorage.setItem('assignees', JSON.stringify(initialAssignees));
     }
   }, []);
 
@@ -326,7 +337,7 @@ export default function HomePage() {
 
       if (elementToScrollTo) {
         // Check if the task is in the archived section and if that section is closed
-        const isArchived = archivedTasksToDisplay.some(task => task.id === firstHighlightedId);
+        const isArchived = baseArchivedTasksToDisplay.some(task => task.id === firstHighlightedId);
         if (isArchived && openAccordionItem !== "archived-tasks") {
           setOpenAccordionItem("archived-tasks");
           // Scroll after accordion opens
@@ -750,3 +761,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    
