@@ -16,7 +16,7 @@ interface TaskListProps {
   onToggleReminder: (id: string) => void;
 }
 
-type SortOption = 'deadline' | 'priority' | 'default'; // Removed 'assignee' as tasks are now grouped by assignee
+type SortOption = 'deadline' | 'priority' | 'default'; 
 
 export function TaskList({ tasks, ...itemProps }: TaskListProps) {
   const [sortOption, setSortOption] = useState<SortOption>('default');
@@ -24,7 +24,7 @@ export function TaskList({ tasks, ...itemProps }: TaskListProps) {
   const groupedAndSortedTasks = useMemo(() => {
     // Group tasks by assignee
     const groupedByAssignee: Record<string, Task[]> = tasks.reduce((acc, task) => {
-      const assigneeKey = task.assignee || '미지정'; // Handle tasks with no assignee
+      const assigneeKey = task.assignee || '미지정'; 
       if (!acc[assigneeKey]) {
         acc[assigneeKey] = [];
       }
@@ -35,16 +35,18 @@ export function TaskList({ tasks, ...itemProps }: TaskListProps) {
     // Sort tasks within each group
     for (const assignee in groupedByAssignee) {
       groupedByAssignee[assignee].sort((a, b) => {
-        if (a.completed && !b.completed) return 1;
-        if (!a.completed && b.completed) return -1;
+        // Primary sort: completed tasks first
+        if (a.completed && !b.completed) return -1; 
+        if (!a.completed && b.completed) return 1;  
 
+        // Secondary sort: user's chosen sortOption
         switch (sortOption) {
           case 'deadline':
             return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
           case 'priority':
             const priorityOrder = { high: 0, medium: 1, low: 2 };
             return priorityOrder[a.priority] - priorityOrder[b.priority];
-          default: // 'default' or creation order
+          default: 
             return 0;
         }
       });
@@ -73,7 +75,7 @@ export function TaskList({ tasks, ...itemProps }: TaskListProps) {
             <SelectValue placeholder="정렬 기준" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">기본 정렬</SelectItem>
+            <SelectItem value="default">기본 정렬 (완료 우선)</SelectItem>
             <SelectItem value="deadline">마감일 순</SelectItem>
             <SelectItem value="priority">중요도 순</SelectItem>
           </SelectContent>

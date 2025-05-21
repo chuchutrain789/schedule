@@ -1,17 +1,21 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Task, Priority } from '@/lib/types';
 import { TaskForm } from '@/components/tasks/TaskForm';
 import { TaskList } from '@/components/tasks/TaskList';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Wand2, PlusSquare } from 'lucide-react';
+import { Calendar as CalendarIconShad, Wand2, PlusSquare } from 'lucide-react';
 import { AppHeader } from '@/components/common/Header';
 import { AiSchedulerModal } from '@/components/tasks/AiSchedulerModal';
 import { getAiScheduleAction } from './actions';
 import { useToast } from '@/hooks/use-toast';
+import { Calendar } from '@/components/ui/calendar'; // Shadcn Calendar
+import { ko } from 'date-fns/locale';
+
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -21,6 +25,7 @@ export default function HomePage() {
   const [aiSchedule, setAiSchedule] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const { toast } = useToast();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Load tasks from local storage on initial render
   useEffect(() => {
@@ -45,12 +50,18 @@ export default function HomePage() {
     localStorage.setItem('tasks', JSON.stringify(tasks));
   }, [tasks]);
 
+  const dueDates = useMemo(() => {
+    return tasks
+      .filter(task => !task.completed)
+      .map(task => new Date(task.deadline));
+  }, [tasks]);
+
   const handleAddTask = (newTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders'>) => {
     const newTask: Task = {
       ...newTaskData,
-      id: crypto.randomUUID(), // Changed from uuidv4()
+      id: crypto.randomUUID(),
       completed: false,
-      enableReminders: true, // Default to true
+      enableReminders: true, 
     };
     setTasks((prevTasks) => [newTask, ...prevTasks]);
     setIsTaskFormModalOpen(false);
@@ -129,6 +140,28 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-background">
       <AppHeader />
       <main className="flex-grow container mx-auto px-4 py-8">
+        <Card className="mb-8 shadow-xl border-primary/20 border-2">
+          <CardHeader className="pb-4">
+             <CardTitle className="text-xl flex items-center text-primary-foreground bg-primary p-3 rounded-lg shadow-md">
+                <CalendarIconShad className="h-6 w-6 mr-2 align-text-bottom" /> 마감일 달력
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex justify-center pb-6">
+            <Calendar
+              mode="multiple"
+              selected={dueDates}
+              month={currentMonth}
+              onMonthChange={setCurrentMonth}
+              locale={ko}
+              className="rounded-md border shadow-inner bg-card"
+              classNames={{
+                day_selected: "bg-accent text-accent-foreground rounded-full focus:bg-accent focus:text-accent-foreground",
+                day_today: "bg-primary/30 text-primary-foreground rounded-full",
+              }}
+            />
+          </CardContent>
+        </Card>
+        
         <Card className="mb-8 shadow-xl border-primary/20 border-2">
           <CardHeader className="pb-4">
             <div className="flex justify-between items-center">
