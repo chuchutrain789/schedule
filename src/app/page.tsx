@@ -18,6 +18,7 @@ import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
 import type { DayContentProps, DayModifiers } from 'react-day-picker';
 import { cn } from '@/lib/utils';
+import { Checkbox } from "@/components/ui/checkbox"; // 추가된 import
 
 const assigneeColors: Record<string, string> = {
   '최준원': 'bg-sky-200 text-sky-800',
@@ -72,7 +73,6 @@ export default function HomePage() {
 
   const parseDeadline = (deadlineStr: string): Date => {
     const parts = deadlineStr.split('-').map(Number);
-    // Ensure month is 0-indexed for Date constructor
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
 
@@ -85,7 +85,10 @@ export default function HomePage() {
   const assigneesByDate = useMemo(() => {
     const map = new Map<string, string[]>();
     tasks.forEach(task => {
-      if (!task.completed) { // Only consider incomplete tasks for badges
+      // 달력에는 완료 여부와 관계없이 마감일 기준으로 담당자를 표시할 수 있으나,
+      // 체크박스 로직 등을 위해 미완료 업무만 고려하는 것이 좋을 수도 있습니다.
+      // 현재는 모든 업무의 담당자를 표시하도록 되어 있습니다.
+      // if (!task.completed) { 
         try {
           const deadlineDate = parseDeadline(task.deadline);
           const dateStr = format(deadlineDate, 'yyyy-MM-dd');
@@ -99,10 +102,41 @@ export default function HomePage() {
         } catch (e) {
           console.error("Error processing task deadline for calendar:", task.deadline, e);
         }
-      }
+      // }
     });
     return map;
   }, [tasks]);
+
+  const handleCalendarBatchComplete = useCallback((dateStr: string, assignee: string) => {
+    const tasksToComplete = tasks.filter(
+      (task) => task.deadline === dateStr && task.assignee === assignee && !task.completed
+    );
+
+    if (tasksToComplete.length === 0) {
+      toast({
+        title: "알림",
+        description: `${assignee}님의 해당 날짜에 완료할 업무가 없습니다.`,
+        variant: "default",
+      });
+      return;
+    }
+
+    setTasks((prevTasks) =>
+      prevTasks.map((task) => {
+        if (task.deadline === dateStr && task.assignee === assignee && !task.completed) {
+          return { ...task, completed: true };
+        }
+        return task;
+      })
+    );
+    toast({
+      title: "일괄 완료",
+      description: `${assignee}님의 ${dateStr} 마감 업무 ${tasksToComplete.length}개가 완료 처리되었습니다.`,
+      variant: "default",
+    });
+    setHighlightedTaskIds([]); // 하이라이트 제거
+  }, [tasks, toast]);
+
 
   const CustomDayRenderer = useCallback(({ date }: DayContentProps) => {
     const dayOfMonth = format(date, 'd');
@@ -118,19 +152,50 @@ export default function HomePage() {
               const tasksForThisAssigneeOnThisDay = tasks
                 .filter(t => t.deadline === dateStr && t.assignee === assignee)
                 .map(t => t.name)
-                .join('\n'); // Use newline for multi-line tooltips
+                .join('\n');
+              
+              const allTasksForAssigneeOnDay = tasks.filter(t => t.deadline === dateStr && t.assignee === assignee);
+              const areAllTasksCompleted = allTasksForAssigneeOnDay.length > 0 && allTasksForAssigneeOnDay.every(t => t.completed);
+              const hasIncompleteTasks = allTasksForAssigneeOnDay.some(t => !t.completed);
 
               return (
-                <div
-                  key={assignee}
-                  data-assignee={assignee}
-                  className={cn(
-                    "text-xs font-semibold leading-snug px-2 py-0.5 rounded-md truncate w-[90%] max-w-[calc(100%-8px)] cursor-pointer transition-opacity hover:opacity-75",
-                    assigneeColors[assignee] || assigneeColors['미지정']
-                  )}
-                  title={tasksForThisAssigneeOnThisDay || assignee}
-                >
-                  {assignee}
+                <div key={`${dateStr}-${assignee}`} className="flex items-center justify-start w-[90%] max-w-[calc(100%-8px)] my-0.5">
+                  <Checkbox
+                    id={`cal-task-complete-${dateStr}-${assignee}`}
+                    checked={areAllTasksCompleted}
+                    disabled={!hasIncompleteTasks} // 모든 업무가 이미 완료되었거나, 업무가 아예 없으면 비활성화
+                    onCheckedChange={() => {
+                      if (hasIncompleteTasks) {
+                        handleCalendarBatchComplete(dateStr, assignee);
+                      }
+                    }}
+                    onClick={(e) => e.stopPropagation()} // 이벤트 전파 중지
+                    className="mr-1.5 h-3.5 w-3.5 border-slate-500 data-[state=checked]:bg-green-500 data-[state=checked]:text-white data-[state=checked]:border-green-600 shrink-0"
+                    aria-label={`${assignee} ${dateStr} 업무 일괄 완료`}
+                  />
+                  <div
+                    data-assignee={assignee}
+                    className={cn(
+                      "text-xs font-semibold leading-snug px-1.5 py-0.5 rounded-md truncate cursor-pointer transition-opacity hover:opacity-75 flex-grow min-w-0",
+                      assigneeColors[assignee] || assigneeColors['미지정']
+                    )}
+                    title={tasksForThisAssigneeOnThisDay || assignee}
+                     onClick={(e) => {
+                        e.stopPropagation();
+                        // 날짜와 담당자 정보를 함께 사용하여 정확한 하이라이팅
+                        const tasksToHighlight = tasks.filter(
+                            task => task.deadline === dateStr && task.assignee === assignee && !task.completed
+                        );
+                        if (tasksToHighlight.length > 0) {
+                            setHighlightedTaskIds(tasksToHighlight.map(t => t.id));
+                        } else {
+                            setHighlightedTaskIds([]);
+                             toast({ title: "알림", description: "해당 담당자의 완료되지 않은 업무가 없습니다."});
+                        }
+                    }}
+                  >
+                    {assignee}
+                  </div>
                 </div>
               );
             })}
@@ -143,7 +208,7 @@ export default function HomePage() {
         )}
       </div>
     );
-  }, [assigneesByDate, tasks]); // Added tasks to dependency array for tooltip
+  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete]);
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
     if (modifiers.outside || modifiers.disabled) {
@@ -151,14 +216,20 @@ export default function HomePage() {
     }
     const clickedDateStr = format(day, 'yyyy-MM-dd');
     
+    // Check if the click was on an assignee badge by looking for data-assignee on target or parents
     let specificAssignee: string | undefined = undefined;
-    const targetElement = event.target as HTMLElement;
-    const assigneeBadge = targetElement.closest('[data-assignee]') as HTMLElement | null;
-
-    if (assigneeBadge && assigneeBadge.dataset.assignee) {
-      specificAssignee = assigneeBadge.dataset.assignee;
+    let currentElement = event.target as HTMLElement | null;
+    while (currentElement && !specificAssignee) {
+        if (currentElement.dataset && currentElement.dataset.assignee) {
+            specificAssignee = currentElement.dataset.assignee;
+        }
+        // Check if we hit a checkbox or its parent, stop propagation if so
+        if (currentElement.role === 'checkbox' || currentElement.querySelector('[role="checkbox"]')) {
+          return; // Stop if click originated from checkbox or its container to avoid double action
+        }
+        currentElement = currentElement.parentElement;
     }
-
+    
     let tasksToConsider = tasks.filter(
       task => task.deadline === clickedDateStr && !task.completed
     );
@@ -172,6 +243,11 @@ export default function HomePage() {
       setHighlightedTaskIds(idsToHighlight);
     } else {
       setHighlightedTaskIds([]); 
+       if (specificAssignee) {
+           toast({ title: "알림", description: `${specificAssignee}님의 해당 날짜에 완료되지 않은 업무가 없습니다.`});
+       } else {
+           toast({ title: "알림", description: "해당 날짜에 완료되지 않은 업무가 없습니다."});
+       }
     }
   };
   
@@ -221,11 +297,18 @@ export default function HomePage() {
   };
 
   const handleToggleComplete = (id: string) => {
+    const taskToToggle = tasks.find(task => task.id === id);
+    if (!taskToToggle) return;
+
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
         task.id === id ? { ...task, completed: !task.completed } : task
       )
     );
+    toast({
+        title: "업무 상태 변경",
+        description: `"${taskToToggle.name}" 업무가 ${!taskToToggle.completed ? "완료" : "미완료"} 처리되었습니다.`
+    });
   };
 
   const handleDeleteTask = (id: string) => {
@@ -242,11 +325,11 @@ export default function HomePage() {
         task.id === id ? { ...task, enableReminders: !task.enableReminders } : task
       )
     );
-     const updatedTask = tasks.find(t => t.id === id);
-     if (updatedTask) {
+     const updatedTask = tasks.find(t => t.id === id); // This will find the task *before* the state update finishes if not careful
+     if (updatedTask) { // updatedTask here refers to the task *before* toggling enableReminders state
         toast({
             title: "알림 설정 변경",
-            description: `"${updatedTask.name}" 업무의 알림이 ${!updatedTask.enableReminders ? "활성화" : "비활성화"}되었습니다.`
+            description: `"${updatedTask.name}" 업무의 알림이 ${!updatedTask.enableReminders ? "활성화" : "비활성화"}되었습니다.` // Logic needs to be based on the *new* state
         });
      }
   };
@@ -288,8 +371,8 @@ export default function HomePage() {
           </CardHeader>
           <CardContent className="flex justify-center p-2 sm:p-4">
             <Calendar
-              mode="multiple" // Keeps multiple days selected (due dates)
-              selected={dueDates} // Visually mark due dates
+              mode="multiple" 
+              selected={dueDates} 
               month={currentMonth}
               onMonthChange={setCurrentMonth}
               onDayClick={handleDayClick}
@@ -302,9 +385,9 @@ export default function HomePage() {
                 head_row: "flex w-full mt-1 md:mt-2",
                 head_cell: cn("text-muted-foreground rounded-md w-16 md:w-20 lg:w-24 font-normal text-xs flex items-center justify-center p-1"),
                 row: "flex w-full mt-1 md:mt-2", 
-                cell: cn("h-20 w-16 md:h-24 md:w-20 lg:h-28 lg:w-24 text-center relative rounded-md p-0"), // Increased height
-                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"), // Ensure day takes full cell
-                day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"), // Style for due dates
+                cell: cn("h-24 w-16 md:h-28 md:w-20 lg:h-32 lg:w-24 text-center relative rounded-md p-0"), 
+                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"), 
+                day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"), 
                 day_today: cn("!bg-primary/30 !text-primary-foreground font-semibold"),
                 day_outside: cn("text-muted-foreground/50 !opacity-50"),
               }}
@@ -374,3 +457,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    

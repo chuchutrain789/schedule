@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Edit3, Trash2, User, CalendarClock, AlertTriangle, Bell, BellOff } from 'lucide-react';
+import { Edit3, Trash2, User, CalendarClock, AlertTriangle, Bell, BellOff, CheckCircle2, Undo2 } from 'lucide-react'; // CheckCircle2, Undo2 추가
 import { format, isPast, isToday, differenceInCalendarDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -58,7 +58,7 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
   useEffect(() => {
     registerRef(task.id, cardRef.current);
     return () => {
-      registerRef(task.id, null); // Clean up ref on unmount
+      registerRef(task.id, null); 
     };
   }, [task.id, registerRef]);
 
@@ -80,7 +80,7 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
               id={`task-${task.id}-complete`}
               checked={task.completed}
               onCheckedChange={() => onToggleComplete(task.id)}
-              aria-label="업무 완료"
+              aria-label="업무 완료 토글"
             />
             <CardTitle className={cn("text-xl", task.completed && 'line-through text-muted-foreground')}>
               {task.name}
@@ -106,7 +106,7 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
             id={`reminder-${task.id}`}
             checked={task.enableReminders}
             onCheckedChange={() => onToggleReminder(task.id)}
-            aria-label="마감 알림"
+            aria-label="마감 알림 토글"
           />
           <Label htmlFor={`reminder-${task.id}`} className="flex items-center">
             {task.enableReminders ? <Bell className="h-4 w-4 mr-1 text-accent" /> : <BellOff className="h-4 w-4 mr-1" />}
@@ -115,6 +115,21 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
         </div>
       </CardContent>
       <CardFooter className="flex justify-end space-x-2">
+        <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onToggleComplete(task.id)}
+            aria-label={task.completed ? "업무를 미완료로 표시" : "업무를 완료로 표시"}
+            className={cn(
+                "transition-colors",
+                task.completed 
+                ? "border-yellow-500 text-yellow-600 hover:bg-yellow-500/10 focus:ring-yellow-400" 
+                : "border-green-500 text-green-600 hover:bg-green-500/10 focus:ring-green-400"
+            )}
+        >
+            {task.completed ? <Undo2 className="h-4 w-4 mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+            {task.completed ? '미완료로' : '완료하기'}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => onEdit(task)} aria-label="업무 수정">
           <Edit3 className="h-4 w-4 mr-1" /> 수정
         </Button>
