@@ -107,7 +107,7 @@ export default function HomePage() {
         {assigneesForDay.length > 0 && (
           <div
             className={cn(
-              "mt-0.5 text-[0.5rem] md:text-[0.55rem] leading-tight px-1 py-0 rounded-xs truncate w-auto max-w-[85%]",
+              "mt-1 text-xs font-medium leading-tight px-2 py-1 rounded-md truncate inline-block max-w-[90%]", // Adjusted classes
               assigneeColors[assigneesForDay[0]] || assigneeColors['미지정']
             )}
             title={assigneesForDay.join(', ')} // Show full list on hover
