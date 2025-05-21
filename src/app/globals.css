@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -112,3 +113,24 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .task-highlight {
+    animation: task-pulse 0.75s ease-in-out 4; /* Approx 3 seconds total animation */
+    border-width: 2px !important; 
+    border-style: solid !important;
+  }
+
+  @keyframes task-pulse {
+    0%, 100% {
+      border-color: hsl(var(--primary)); /* Soft Lavender */
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.7);
+    }
+    50% {
+      border-color: hsl(var(--accent));   /* Muted Teal */
+      box-shadow: 0 0 8px 4px hsl(var(--accent) / 0.5);
+    }
+  }
+}
+
+    

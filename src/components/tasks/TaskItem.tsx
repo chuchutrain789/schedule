@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Task, Priority } from '@/lib/types';
@@ -11,6 +12,7 @@ import { Edit3, Trash2, User, CalendarClock, AlertTriangle, Bell, BellOff } from
 import { format, isPast, isToday, differenceInCalendarDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useRef, useEffect } from 'react';
 
 interface TaskItemProps {
   task: Task;
@@ -18,6 +20,8 @@ interface TaskItemProps {
   onDelete: (id: string) => void;
   onEdit: (task: Task) => void;
   onToggleReminder: (id: string) => void;
+  isHighlighted: boolean;
+  registerRef: (id: string, element: HTMLDivElement | null) => void;
 }
 
 const priorityMap: Record<Priority, { label: string; color: string }> = {
@@ -26,7 +30,7 @@ const priorityMap: Record<Priority, { label: string; color: string }> = {
   low: { label: '낮음', color: 'bg-green-500' },
 };
 
-export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleReminder }: TaskItemProps) {
+export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleReminder, isHighlighted, registerRef }: TaskItemProps) {
   const deadlineDate = new Date(task.deadline);
   const isTaskOverdue = !task.completed && isPast(deadlineDate) && !isToday(deadlineDate);
   const isTaskDueToday = !task.completed && isToday(deadlineDate);
@@ -42,16 +46,33 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
     deadlineBadgeVariant = "destructive";
     deadlineText = `마감 초과! - ${deadlineText}`;
   } else if (isTaskDueToday) {
-    deadlineBadgeVariant = "outline"; // Use outline for due today with accent border
+    deadlineBadgeVariant = "outline"; 
     deadlineText = `오늘 마감! - ${deadlineText}`;
   } else if (daysRemaining >= 0 && daysRemaining <= 3) {
-     deadlineBadgeVariant = "outline"; // Use outline for upcoming with accent border
+     deadlineBadgeVariant = "outline"; 
      deadlineText = `${daysRemaining}일 남음 - ${deadlineText}`;
   }
 
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    registerRef(task.id, cardRef.current);
+    return () => {
+      registerRef(task.id, null); // Clean up ref on unmount
+    };
+  }, [task.id, registerRef]);
+
 
   return (
-    <Card className={cn("shadow-lg transition-all duration-300", task.completed ? 'bg-muted/50 opacity-70' : 'bg-card', isTaskOverdue ? "border-destructive" : isTaskDueToday || (daysRemaining >=0 && daysRemaining <=3 && !task.completed) ? "border-accent" : "")}>
+    <Card 
+      ref={cardRef}
+      className={cn(
+        "shadow-lg transition-all duration-300", 
+        task.completed ? 'bg-muted/50 opacity-70' : 'bg-card', 
+        isTaskOverdue ? "border-destructive" : (isTaskDueToday || (daysRemaining >=0 && daysRemaining <=3 && !task.completed)) ? "border-accent" : "",
+        isHighlighted && 'task-highlight'
+      )}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
@@ -104,3 +125,5 @@ export function TaskItem({ task, onToggleComplete, onDelete, onEdit, onToggleRem
     </Card>
   );
 }
+
+    

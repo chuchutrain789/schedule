@@ -14,16 +14,18 @@ interface TaskListProps {
   onDelete: (id: string) => void;
   onEdit: (task: Task) => void;
   onToggleReminder: (id: string) => void;
+  highlightedTaskIds: string[];
+  registerTaskItemRef: (id: string, element: HTMLDivElement | null) => void;
 }
 
 type SortOption = 'deadline' | 'priority' | 'default'; 
 
-export function TaskList({ tasks, ...itemProps }: TaskListProps) {
+export function TaskList({ tasks, highlightedTaskIds, registerTaskItemRef, ...itemProps }: TaskListProps) {
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
   const groupedAndSortedTasks = useMemo(() => {
-    // Group tasks by assignee
-    const groupedByAssignee: Record<string, Task[]> = tasks.reduce((acc, task) => {
+    const validTasks = tasks || []; 
+    const groupedByAssignee: Record<string, Task[]> = validTasks.reduce((acc, task) => {
       const assigneeKey = task.assignee || '미지정'; 
       if (!acc[assigneeKey]) {
         acc[assigneeKey] = [];
@@ -32,23 +34,25 @@ export function TaskList({ tasks, ...itemProps }: TaskListProps) {
       return acc;
     }, {} as Record<string, Task[]>);
 
-    // Sort tasks within each group
     for (const assignee in groupedByAssignee) {
       groupedByAssignee[assignee].sort((a, b) => {
-        // Primary sort: completed tasks first
-        if (a.completed && !b.completed) return -1; 
-        if (!a.completed && b.completed) return 1;  
-
-        // Secondary sort: user's chosen sortOption
-        switch (sortOption) {
-          case 'deadline':
-            return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-          case 'priority':
-            const priorityOrder = { high: 0, medium: 1, low: 2 };
-            return priorityOrder[a.priority] - priorityOrder[b.priority];
-          default: 
-            return 0;
+        // Sort completed tasks to the top
+        if (a.completed && !b.completed) return -1;
+        if (!a.completed && b.completed) return 1;
+        
+        // If completion status is the same, sort by selected option
+        if (a.completed === b.completed) {
+          switch (sortOption) {
+            case 'deadline':
+              return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+            case 'priority':
+              const priorityOrder = { high: 0, medium: 1, low: 2 };
+              return priorityOrder[a.priority] - priorityOrder[b.priority];
+            default: // 'default' sort (e.g., after completion status, by deadline)
+              return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+          }
         }
+        return 0; 
       });
     }
     return groupedByAssignee;
@@ -56,7 +60,7 @@ export function TaskList({ tasks, ...itemProps }: TaskListProps) {
 
   const assignees = Object.keys(groupedAndSortedTasks).sort();
 
-  if (tasks.length === 0) {
+  if (!tasks || tasks.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground">
         <Inbox className="mx-auto h-16 w-16 mb-4" />
@@ -90,10 +94,16 @@ export function TaskList({ tasks, ...itemProps }: TaskListProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            {groupedAndSortedTasks[assignee].length > 0 ? (
+            {groupedAndSortedTasks[assignee] && groupedAndSortedTasks[assignee].length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {groupedAndSortedTasks[assignee].map((task) => (
-                  <TaskItem key={task.id} task={task} {...itemProps} />
+                  <TaskItem 
+                    key={task.id} 
+                    task={task} 
+                    {...itemProps} 
+                    isHighlighted={highlightedTaskIds.includes(task.id)}
+                    registerRef={registerTaskItemRef}
+                  />
                 ))}
               </div>
             ) : (

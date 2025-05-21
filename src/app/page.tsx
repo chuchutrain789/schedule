@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback }  from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef }  from 'react';
 import type { Task, Priority } from '@/lib/types';
 import { TaskForm } from '@/components/tasks/TaskForm';
 import { TaskList } from '@/components/tasks/TaskList';
@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar'; // Shadcn Calendar
 import { ko } from 'date-fns/locale';
 import { format } from 'date-fns';
-import type { DayContentProps } from 'react-day-picker';
+import type { DayContentProps, DayModifiers } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 
 const assigneeColors: Record<string, string> = {
@@ -26,7 +26,7 @@ const assigneeColors: Record<string, string> = {
   '추성욱': 'bg-purple-200 text-purple-800',
   '신미경': 'bg-orange-200 text-orange-800',
   '추상훈': 'bg-teal-200 text-teal-800',
-  '미지정': 'bg-gray-300 text-gray-800', // Fallback for unassigned or new assignees
+  '미지정': 'bg-gray-300 text-gray-800',
 };
 
 export default function HomePage() {
@@ -38,8 +38,17 @@ export default function HomePage() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const { toast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [highlightedTaskIds, setHighlightedTaskIds] = useState<string[]>([]);
+  const taskItemRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
 
-  // Load tasks from local storage on initial render
+  const registerTaskItemRef = useCallback((id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      taskItemRefs.current.set(id, element);
+    } else {
+      taskItemRefs.current.delete(id);
+    }
+  }, []);
+
   useEffect(() => {
     const storedTasks = localStorage.getItem('tasks');
     if (storedTasks) {
@@ -57,14 +66,12 @@ export default function HomePage() {
     }
   }, []);
 
-  // Save tasks to local storage whenever tasks change
   useEffect(() => {
     localStorage.setItem('tasks', JSON.stringify(tasks));
   }, [tasks]);
 
   const parseDeadline = (deadlineStr: string): Date => {
     const parts = deadlineStr.split('-').map(Number);
-    // Ensures date is parsed as local, not UTC, to avoid off-by-one day issues.
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
 
@@ -107,10 +114,10 @@ export default function HomePage() {
         {assigneesForDay.length > 0 && (
           <div
             className={cn(
-              "mt-1 text-xs font-medium leading-tight px-2 py-1 rounded-md truncate inline-block max-w-[90%]", // Adjusted classes
+              "mt-1 text-xs font-medium leading-tight px-2 py-1 rounded-md truncate inline-block max-w-[90%]",
               assigneeColors[assigneesForDay[0]] || assigneeColors['미지정']
             )}
-            title={assigneesForDay.join(', ')} // Show full list on hover
+            title={assigneesForDay.join(', ')}
           >
             {assigneesForDay[0]}
             {assigneesForDay.length > 1 && (
@@ -121,6 +128,44 @@ export default function HomePage() {
       </div>
     );
   }, [assigneesByDate]);
+
+  const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
+    // Prevent click handling if the day is outside the current month or disabled, etc.
+    if (modifiers.outside || modifiers.disabled) {
+      return;
+    }
+    const clickedDateStr = format(day, 'yyyy-MM-dd');
+    const tasksForDay = tasks.filter(
+      task => task.deadline === clickedDateStr && !task.completed
+    );
+
+    if (tasksForDay.length > 0) {
+      const idsToHighlight = tasksForDay.map(t => t.id);
+      setHighlightedTaskIds(idsToHighlight);
+    } else {
+      setHighlightedTaskIds([]); 
+    }
+  };
+  
+  useEffect(() => {
+    if (highlightedTaskIds.length > 0) {
+      const firstHighlightedId = highlightedTaskIds[0];
+      const elementToScrollTo = taskItemRefs.current.get(firstHighlightedId);
+
+      if (elementToScrollTo) {
+        elementToScrollTo.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }
+
+      const timer = setTimeout(() => {
+        setHighlightedTaskIds([]);
+      }, 3000); // Highlight for 3 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedTaskIds]);
 
 
   const handleAddTask = (newTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders'>) => {
@@ -219,6 +264,7 @@ export default function HomePage() {
               selected={dueDates}
               month={currentMonth}
               onMonthChange={setCurrentMonth}
+              onDayClick={handleDayClick}
               locale={ko}
               className="rounded-md border shadow-inner bg-card p-2 md:p-3 w-full max-w-2xl" 
               classNames={{
@@ -228,7 +274,7 @@ export default function HomePage() {
                 head_row: "flex w-full mt-1 md:mt-2",
                 head_cell: cn("text-muted-foreground rounded-md w-16 md:w-20 lg:w-24 font-normal text-xs flex items-center justify-center p-1"),
                 row: "flex w-full mt-1 md:mt-2", 
-                cell: cn("h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 text-center relative rounded-md p-0"), // Cell size increased for content
+                cell: cn("h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 text-center relative rounded-md p-0"), 
                 day: cn("h-full w-full focus:relative focus:z-10 rounded-full"), 
                 day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"),
                 day_today: cn("!bg-primary/30 !text-primary-foreground font-semibold"),
@@ -283,6 +329,8 @@ export default function HomePage() {
           onDelete={handleDeleteTask}
           onEdit={openEditModal}
           onToggleReminder={handleToggleReminder}
+          highlightedTaskIds={highlightedTaskIds}
+          registerTaskItemRef={registerTaskItemRef}
         />
       </main>
       <footer className="text-center py-6 border-t text-sm text-muted-foreground">
@@ -298,3 +346,5 @@ export default function HomePage() {
     </div>
   );
 }
+
+    
