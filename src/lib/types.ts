@@ -1,3 +1,4 @@
+
 export type Priority = 'high' | 'medium' | 'low';
 
 export interface Task {
@@ -7,5 +8,7 @@ export interface Task {
   deadline: string; // YYYY-MM-DD format
   priority: Priority;
   completed: boolean;
+  completionDate?: string; // ISO string, e.g., new Date().toISOString()
   enableReminders: boolean;
 }
+

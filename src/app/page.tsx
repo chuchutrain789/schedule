@@ -10,17 +10,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Calendar as CalendarIconShad, Wand2, PlusSquare, UserCog, X } from 'lucide-react';
+import { Calendar as CalendarIconShad, Wand2, PlusSquare, UserCog, X, Archive } from 'lucide-react';
 import { AppHeader } from '@/components/common/Header';
 import { AiSchedulerModal } from '@/components/tasks/AiSchedulerModal';
 import { getAiScheduleAction } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar'; // Shadcn Calendar
 import { ko } from 'date-fns/locale';
-import { format } from 'date-fns';
+import { format, parseISO, subDays, differenceInCalendarDays } from 'date-fns';
 import type { DayContentProps, DayModifiers } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 const initialAssignees = ['최준원', '백옥주', '추효정', '추성욱', '신미경', '추상훈'];
 
@@ -63,9 +64,14 @@ export default function HomePage() {
     const storedTasks = localStorage.getItem('tasks');
     if (storedTasks) {
       try {
-        const parsedTasks = JSON.parse(storedTasks);
+        const parsedTasks: Task[] = JSON.parse(storedTasks);
         if (Array.isArray(parsedTasks)) {
-          setTasks(parsedTasks);
+          setTasks(parsedTasks.map(task => ({
+            ...task,
+            // Ensure deadline is a string, and completionDate if exists, is also handled (string or undefined)
+            deadline: String(task.deadline),
+            completionDate: task.completionDate ? String(task.completionDate) : undefined,
+          })));
         } else {
           setTasks([]);
         }
@@ -84,7 +90,6 @@ export default function HomePage() {
         }
       } catch (error) {
         console.error("Error parsing assignees from localStorage:", error);
-        // Keep initialAssignees if localStorage parsing fails
       }
     }
   }, []);
@@ -118,7 +123,7 @@ export default function HomePage() {
         title: "삭제 불가",
         description: `${assigneeToRemove}님에게 배정된 미완료 업무가 있어 삭제할 수 없습니다. 업무를 다른 담당자에게 재배정하거나 완료처리 후 시도해주세요.`,
         variant: "destructive",
-        duration: 7000, // Longer duration for important message
+        duration: 7000,
       });
       return;
     }
@@ -128,6 +133,7 @@ export default function HomePage() {
 
 
   const parseDeadline = (deadlineStr: string): Date => {
+    // Assuming YYYY-MM-DD. For ISO strings (like completionDate), parseISO is better.
     const parts = deadlineStr.split('-').map(Number);
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
@@ -175,7 +181,7 @@ export default function HomePage() {
     setTasks((prevTasks) =>
       prevTasks.map((task) => {
         if (task.deadline === dateStr && task.assignee === assignee && !task.completed) {
-          return { ...task, completed: true };
+          return { ...task, completed: true, completionDate: new Date().toISOString() };
         }
         return task;
       })
@@ -258,7 +264,7 @@ export default function HomePage() {
         )}
       </div>
     );
-  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, highlightedTaskIds, assignees]);
+  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, assignees]); // Removed highlightedTaskIds as it caused re-renders
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
     if (modifiers.outside || modifiers.disabled) {
@@ -320,7 +326,7 @@ export default function HomePage() {
   }, [highlightedTaskIds]);
 
 
-  const handleAddTask = (newTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders'>) => {
+  const handleAddTask = (newTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders' | 'completionDate'>) => {
     const newTask: Task = {
       ...newTaskData,
       id: crypto.randomUUID(),
@@ -332,7 +338,7 @@ export default function HomePage() {
     toast({ title: "업무 추가 완료", description: `"${newTask.name}" 업무가 성공적으로 추가되었습니다.`, variant: "default" });
   };
 
-  const handleEditTask = (updatedTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders'>) => {
+  const handleEditTask = (updatedTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders'| 'completionDate'>) => {
     if (!editingTask) return;
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
@@ -348,14 +354,19 @@ export default function HomePage() {
     const taskToToggle = tasks.find(task => task.id === id);
     if (!taskToToggle) return;
 
+    const newCompletedState = !taskToToggle.completed;
     setTasks((prevTasks) =>
       prevTasks.map((task) =>
-        task.id === id ? { ...task, completed: !task.completed } : task
+        task.id === id ? { 
+          ...task, 
+          completed: newCompletedState, 
+          completionDate: newCompletedState ? new Date().toISOString() : undefined 
+        } : task
       )
     );
     toast({
         title: "업무 상태 변경",
-        description: `"${taskToToggle.name}" 업무가 ${!taskToToggle.completed ? "완료" : "미완료"} 처리되었습니다.`
+        description: `"${taskToToggle.name}" 업무가 ${newCompletedState ? "완료" : "미완료"} 처리되었습니다.`
     });
   };
 
@@ -392,12 +403,45 @@ export default function HomePage() {
     setIsTaskFormModalOpen(true);
   }
 
+  const twoDaysAgo = useMemo(() => subDays(new Date(), 2), []);
+
+  const activeTasks = useMemo(() => {
+    return tasks.filter(task => {
+      if (!task.completed) return true;
+      if (!task.completionDate) return true; // Should have completionDate if completed
+      try {
+        return parseISO(task.completionDate) >= twoDaysAgo;
+      } catch (e) {
+        console.error("Error parsing completionDate for activeTasks filter:", task.completionDate, e);
+        return true; // Fallback: keep task if date is unparsable
+      }
+    });
+  }, [tasks, twoDaysAgo]);
+
+  const archivedTasksToDisplay = useMemo(() => {
+    return tasks.filter(task => {
+      if (!task.completed || !task.completionDate) return false;
+      try {
+        return parseISO(task.completionDate) < twoDaysAgo;
+      } catch (e) {
+        console.error("Error parsing completionDate for archivedTasksToDisplay filter:", task.completionDate, e);
+        return false; // Fallback: don't archive if date is unparsable
+      }
+    }).sort((a, b) => { // Sort archived tasks by completion date, newest first
+        if (!a.completionDate || !b.completionDate) return 0;
+        return parseISO(b.completionDate).getTime() - parseISO(a.completionDate).getTime();
+    });
+  }, [tasks, twoDaysAgo]);
+
+
   const handleGetAiSchedule = async () => {
     setIsAiModalOpen(true);
     setIsAiLoading(true);
     setAiSchedule(null);
     try {
-      const schedule = await getAiScheduleAction(tasks);
+      // Pass only active, non-archived tasks to AI
+      const tasksForAISuggestion = activeTasks.filter(task => !task.completed);
+      const schedule = await getAiScheduleAction(tasksForAISuggestion);
       setAiSchedule(schedule);
     } catch (error) {
       setAiSchedule('AI 스케줄을 가져오는 중 오류가 발생했습니다.');
@@ -529,7 +573,7 @@ export default function HomePage() {
         </div>
 
         <TaskList
-          tasks={tasks}
+          tasks={activeTasks}
           onToggleComplete={handleToggleComplete}
           onDelete={handleDeleteTask}
           onEdit={openEditModal}
@@ -537,6 +581,31 @@ export default function HomePage() {
           highlightedTaskIds={highlightedTaskIds}
           registerTaskItemRef={registerTaskItemRef}
         />
+
+        {archivedTasksToDisplay.length > 0 && (
+          <Accordion type="single" collapsible className="w-full mt-12">
+            <AccordionItem value="archived-tasks">
+              <AccordionTrigger className="text-lg font-semibold text-primary hover:no-underline py-3 px-4 rounded-md bg-muted/50 hover:bg-muted/70 transition-colors">
+                <div className="flex items-center">
+                  <Archive className="mr-3 h-6 w-6 text-primary/80" />
+                  지난 업무 목록 ({archivedTasksToDisplay.length}개)
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                <TaskList
+                  tasks={archivedTasksToDisplay}
+                  onToggleComplete={handleToggleComplete} // Allow un-archiving by marking incomplete
+                  onDelete={handleDeleteTask}
+                  onEdit={openEditModal} // Allow editing archived, though less common
+                  onToggleReminder={handleToggleReminder}
+                  highlightedTaskIds={highlightedTaskIds} // May not be very useful here
+                  registerTaskItemRef={registerTaskItemRef} // May not be very useful here
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
+
       </main>
       <footer className="text-center py-6 border-t text-sm text-muted-foreground">
         © {new Date().getFullYear()} 스케줄 비서. AI로 더 스마트하게.
@@ -551,4 +620,3 @@ export default function HomePage() {
     </div>
   );
 }
-
