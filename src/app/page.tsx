@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback }  from 'react';
 import type { Task, Priority } from '@/lib/types';
 import { TaskForm } from '@/components/tasks/TaskForm';
 import { TaskList } from '@/components/tasks/TaskList';
@@ -15,6 +15,9 @@ import { getAiScheduleAction } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar'; // Shadcn Calendar
 import { ko } from 'date-fns/locale';
+import { format } from 'date-fns';
+import type { DayContentProps } from 'react-day-picker';
+import { cn } from '@/lib/utils';
 
 
 export default function HomePage() {
@@ -50,11 +53,60 @@ export default function HomePage() {
     localStorage.setItem('tasks', JSON.stringify(tasks));
   }, [tasks]);
 
+  const parseDeadline = (deadlineStr: string): Date => {
+    const parts = deadlineStr.split('-').map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  };
+
   const dueDates = useMemo(() => {
     return tasks
       .filter(task => !task.completed)
-      .map(task => new Date(task.deadline));
+      .map(task => parseDeadline(task.deadline));
   }, [tasks]);
+
+  const assigneesByDate = useMemo(() => {
+    const map = new Map<string, string[]>();
+    tasks.forEach(task => {
+      if (!task.completed) {
+        try {
+          const deadlineDate = parseDeadline(task.deadline);
+          const dateStr = format(deadlineDate, 'yyyy-MM-dd');
+          if (!map.has(dateStr)) {
+            map.set(dateStr, []);
+          }
+          const currentAssignees = map.get(dateStr)!;
+          if (!currentAssignees.includes(task.assignee)) {
+            currentAssignees.push(task.assignee);
+          }
+        } catch (e) {
+          console.error("Error processing task deadline for calendar:", task.deadline, e);
+        }
+      }
+    });
+    return map;
+  }, [tasks]);
+
+  const CustomDayRenderer = useCallback(({ date }: DayContentProps) => {
+    const dayOfMonth = format(date, 'd');
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const assigneesForDay = assigneesByDate.get(dateStr) || [];
+
+    return (
+      <div className="flex flex-col items-center justify-center h-full w-full text-center p-0.5">
+        <span>{dayOfMonth}</span>
+        {assigneesForDay.length > 0 && (
+          <span 
+            className="mt-px text-[0.6rem] md:text-[0.65rem] leading-none font-medium text-muted-foreground/90 truncate w-full block"
+            title={assigneesForDay.join(', ')} // Show full list on hover
+          >
+            {assigneesForDay[0]}
+            {assigneesForDay.length > 1 && ` +${assigneesForDay.length - 1}`}
+          </span>
+        )}
+      </div>
+    );
+  }, [assigneesByDate]);
+
 
   const handleAddTask = (newTaskData: Omit<Task, 'id' | 'completed' | 'enableReminders'>) => {
     const newTask: Task = {
@@ -146,17 +198,27 @@ export default function HomePage() {
                 <CalendarIconShad className="h-6 w-6 mr-2 align-text-bottom" /> 마감일 달력
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex justify-center pb-6">
+          <CardContent className="flex justify-center p-2 sm:p-4">
             <Calendar
               mode="multiple"
               selected={dueDates}
               month={currentMonth}
               onMonthChange={setCurrentMonth}
               locale={ko}
-              className="rounded-md border shadow-inner bg-card"
+              className="rounded-md border shadow-inner bg-card p-2 md:p-3 w-full max-w-2xl" // Increased padding and max-width for overall size
               classNames={{
-                day_selected: "bg-accent text-accent-foreground rounded-full focus:bg-accent focus:text-accent-foreground",
-                day_today: "bg-primary/30 text-primary-foreground rounded-full",
+                caption_label: "text-lg font-semibold",
+                nav_button: "h-8 w-8",
+                month: "space-y-3 md:space-y-4", // Adjust space between weeks
+                row: "flex w-full mt-1 md:mt-2", 
+                cell: cn("h-14 w-14 md:h-18 md:w-18 lg:h-20 lg:w-20 text-center relative rounded-md p-0"), // Cell size increased, p-0 for custom content
+                day: cn("h-full w-full focus:relative focus:z-10 rounded-full"), // Day takes full cell, rounded for selection highlight
+                day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"),
+                day_today: cn("!bg-primary/30 !text-primary-foreground font-semibold"),
+                day_outside: cn("text-muted-foreground/50 !opacity-50"),
+              }}
+              components={{
+                DayContent: CustomDayRenderer
               }}
             />
           </CardContent>
@@ -218,4 +280,5 @@ export default function HomePage() {
       />
     </div>
   );
-}
+
+    
