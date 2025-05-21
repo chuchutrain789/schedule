@@ -1,12 +1,14 @@
 
 'use client';
 
-import type { Task } from '@/lib/types';
+import type { Task, Priority } from '@/lib/types';
 import { TaskItem } from './TaskItem';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState, useMemo } from 'react';
-import { ListFilter, Inbox, User } from 'lucide-react';
+import { ListFilter, Inbox, User, CalendarDays, AlertTriangleIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 interface TaskListProps {
   tasks: Task[];
@@ -18,47 +20,104 @@ interface TaskListProps {
   registerTaskItemRef: (id: string, element: HTMLDivElement | null) => void;
 }
 
-type SortOption = 'deadline' | 'priority' | 'default'; 
+type ViewOption = 'assignee' | 'deadlineDate' | 'priorityLevel';
+
+const priorityDisplayMap: Record<Priority, string> = {
+  high: '높음',
+  medium: '중간',
+  low: '낮음',
+};
+
+interface ProcessedGroup {
+  groupTitle: string;
+  groupDisplayTitle: string;
+  groupType: ViewOption;
+  tasks: Task[];
+}
 
 export function TaskList({ tasks, highlightedTaskIds, registerTaskItemRef, ...itemProps }: TaskListProps) {
-  const [sortOption, setSortOption] = useState<SortOption>('default');
+  const [viewOption, setViewOption] = useState<ViewOption>('assignee');
 
-  const groupedAndSortedTasks = useMemo(() => {
-    const validTasks = tasks || []; 
-    const groupedByAssignee: Record<string, Task[]> = validTasks.reduce((acc, task) => {
-      const assigneeKey = task.assignee || '미지정'; 
-      if (!acc[assigneeKey]) {
-        acc[assigneeKey] = [];
-      }
-      acc[assigneeKey].push(task);
-      return acc;
-    }, {} as Record<string, Task[]>);
+  const processedTasks = useMemo(() => {
+    const initialSortedTasks = [...tasks].sort((a, b) => {
+      if (a.completed && !b.completed) return -1;
+      if (!a.completed && b.completed) return 1;
+      return 0;
+    });
 
-    for (const assignee in groupedByAssignee) {
-      groupedByAssignee[assignee].sort((a, b) => {
-        // Sort completed tasks to the top
-        if (a.completed && !b.completed) return -1;
-        if (!a.completed && b.completed) return 1;
-        
-        // If completion status is the same, sort by selected option
-        if (a.completed === b.completed) {
-          switch (sortOption) {
-            case 'deadline':
-              return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-            case 'priority':
-              const priorityOrder = { high: 0, medium: 1, low: 2 };
-              return priorityOrder[a.priority] - priorityOrder[b.priority];
-            default: // 'default' sort (e.g., after completion status, by deadline)
-              return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-          }
-        }
-        return 0; 
-      });
+    if (viewOption === 'assignee') {
+      const groupedByAssignee = initialSortedTasks.reduce((acc, task) => {
+        const key = task.assignee || '미지정';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(task);
+        return acc;
+      }, {} as Record<string, Task[]>);
+
+      return Object.keys(groupedByAssignee).sort().map(assigneeName => ({
+        groupTitle: assigneeName,
+        groupDisplayTitle: assigneeName,
+        groupType: 'assignee' as const,
+        tasks: groupedByAssignee[assigneeName].sort((a, b) => {
+          if (a.completed && !b.completed) return -1;
+          if (!a.completed && b.completed) return 1;
+          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+        })
+      }));
     }
-    return groupedByAssignee;
-  }, [tasks, sortOption]);
 
-  const assignees = Object.keys(groupedAndSortedTasks).sort();
+    if (viewOption === 'deadlineDate') {
+      const groupedByDeadline = initialSortedTasks.reduce((acc, task) => {
+        const key = task.deadline; // YYYY-MM-DD
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(task);
+        return acc;
+      }, {} as Record<string, Task[]>);
+
+      return Object.keys(groupedByDeadline)
+        .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+        .map(deadline => ({
+          groupTitle: deadline,
+          groupDisplayTitle: format(new Date(deadline), 'yyyy년 M월 d일 (EEE)', { locale: ko }),
+          groupType: 'deadlineDate' as const,
+          tasks: groupedByDeadline[deadline].sort((a, b) => {
+            if (a.completed && !b.completed) return -1;
+            if (!a.completed && b.completed) return 1;
+            const priorityOrder = { high: 0, medium: 1, low: 2 };
+            if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+              return priorityOrder[a.priority] - priorityOrder[b.priority];
+            }
+            return a.assignee.localeCompare(b.assignee);
+          })
+        }));
+    }
+
+    if (viewOption === 'priorityLevel') {
+      const groupedByPriority = initialSortedTasks.reduce((acc, task) => {
+        const key = task.priority;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(task);
+        return acc;
+      }, {} as Record<string, Task[]>);
+
+      const priorityOrderKeys: Priority[] = ['high', 'medium', 'low'];
+      return priorityOrderKeys
+        .filter(pKey => groupedByPriority[pKey])
+        .map(priority => ({
+          groupTitle: priority,
+          groupDisplayTitle: `중요도: ${priorityDisplayMap[priority]}`,
+          groupType: 'priorityLevel' as const,
+          tasks: groupedByPriority[priority].sort((a, b) => {
+            if (a.completed && !b.completed) return -1;
+            if (!a.completed && b.completed) return 1;
+            if (new Date(a.deadline).getTime() !== new Date(b.deadline).getTime()) {
+              return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+            }
+            return a.assignee.localeCompare(b.assignee);
+          })
+        }));
+    }
+    return [] as ProcessedGroup[];
+  }, [tasks, viewOption]);
 
   if (!tasks || tasks.length === 0) {
     return (
@@ -70,33 +129,46 @@ export function TaskList({ tasks, highlightedTaskIds, registerTaskItemRef, ...it
     );
   }
 
+  const getGroupIcon = (groupType: ViewOption) => {
+    switch (groupType) {
+      case 'assignee':
+        return <User className="h-6 w-6 mr-3 text-primary" />;
+      case 'deadlineDate':
+        return <CalendarDays className="h-6 w-6 mr-3 text-primary" />;
+      case 'priorityLevel':
+        return <AlertTriangleIcon className="h-6 w-6 mr-3 text-primary" />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex justify-end items-center">
         <ListFilter className="h-5 w-5 mr-2 text-muted-foreground" />
-        <Select value={sortOption} onValueChange={(value) => setSortOption(value as SortOption)}>
-          <SelectTrigger className="w-[180px] bg-card">
-            <SelectValue placeholder="정렬 기준" />
+        <Select value={viewOption} onValueChange={(value) => setViewOption(value as ViewOption)}>
+          <SelectTrigger className="w-[200px] bg-card">
+            <SelectValue placeholder="보기 방식" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="default">기본 정렬 (완료 우선)</SelectItem>
-            <SelectItem value="deadline">마감일 순</SelectItem>
-            <SelectItem value="priority">중요도 순</SelectItem>
+            <SelectItem value="assignee">담당자별 보기</SelectItem>
+            <SelectItem value="deadlineDate">마감일별 보기</SelectItem>
+            <SelectItem value="priorityLevel">중요도별 보기</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      {assignees.map(assignee => (
-        <Card key={assignee} className="shadow-lg border-border">
+      {processedTasks.map(group => (
+        <Card key={`${group.groupType}-${group.groupTitle}`} className="shadow-lg border-border">
           <CardHeader className="bg-muted/30">
             <CardTitle className="text-xl flex items-center">
-              <User className="h-6 w-6 mr-3 text-primary" />
-              {assignee}
+              {getGroupIcon(group.groupType)}
+              {group.groupDisplayTitle}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-6">
-            {groupedAndSortedTasks[assignee] && groupedAndSortedTasks[assignee].length > 0 ? (
+            {group.tasks && group.tasks.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {groupedAndSortedTasks[assignee].map((task) => (
+                {group.tasks.map((task) => (
                   <TaskItem 
                     key={task.id} 
                     task={task} 
@@ -107,7 +179,7 @@ export function TaskList({ tasks, highlightedTaskIds, registerTaskItemRef, ...it
                 ))}
               </div>
             ) : (
-              <p className="text-muted-foreground">이 담당자에게는 현재 할당된 업무가 없습니다.</p>
+              <p className="text-muted-foreground">이 그룹에는 현재 표시할 업무가 없습니다.</p>
             )}
           </CardContent>
         </Card>
