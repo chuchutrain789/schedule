@@ -19,6 +19,15 @@ import { format } from 'date-fns';
 import type { DayContentProps } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 
+const assigneeColors: Record<string, string> = {
+  '최준원': 'bg-sky-200 text-sky-800',
+  '백옥주': 'bg-pink-200 text-pink-800',
+  '추효정': 'bg-lime-200 text-lime-800',
+  '추성욱': 'bg-purple-200 text-purple-800',
+  '신미경': 'bg-orange-200 text-orange-800',
+  '추상훈': 'bg-teal-200 text-teal-800',
+  '미지정': 'bg-gray-300 text-gray-800', // Fallback for unassigned or new assignees
+};
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -55,6 +64,7 @@ export default function HomePage() {
 
   const parseDeadline = (deadlineStr: string): Date => {
     const parts = deadlineStr.split('-').map(Number);
+    // Ensures date is parsed as local, not UTC, to avoid off-by-one day issues.
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
 
@@ -95,13 +105,18 @@ export default function HomePage() {
       <div className="flex flex-col items-center justify-center h-full w-full text-center p-0.5">
         <span>{dayOfMonth}</span>
         {assigneesForDay.length > 0 && (
-          <span 
-            className="mt-px text-[0.6rem] md:text-[0.65rem] leading-none font-medium text-muted-foreground/90 truncate w-full block"
+          <div
+            className={cn(
+              "mt-0.5 text-[0.6rem] md:text-[0.65rem] leading-tight px-1.5 py-0.5 rounded-sm shadow-sm truncate w-auto max-w-[90%]",
+              assigneeColors[assigneesForDay[0]] || assigneeColors['미지정']
+            )}
             title={assigneesForDay.join(', ')} // Show full list on hover
           >
             {assigneesForDay[0]}
-            {assigneesForDay.length > 1 && ` +${assigneesForDay.length - 1}`}
-          </span>
+            {assigneesForDay.length > 1 && (
+              <span className="ml-1 font-semibold opacity-80">+{assigneesForDay.length - 1}</span>
+            )}
+          </div>
         )}
       </div>
     );
@@ -205,14 +220,14 @@ export default function HomePage() {
               month={currentMonth}
               onMonthChange={setCurrentMonth}
               locale={ko}
-              className="rounded-md border shadow-inner bg-card p-2 md:p-3 w-full max-w-2xl" // Increased padding and max-width for overall size
+              className="rounded-md border shadow-inner bg-card p-2 md:p-3 w-full max-w-2xl" 
               classNames={{
                 caption_label: "text-lg font-semibold",
                 nav_button: "h-8 w-8",
-                month: "space-y-3 md:space-y-4", // Adjust space between weeks
+                month: "space-y-3 md:space-y-4", 
                 row: "flex w-full mt-1 md:mt-2", 
-                cell: cn("h-14 w-14 md:h-18 md:w-18 lg:h-20 lg:w-20 text-center relative rounded-md p-0"), // Cell size increased, p-0 for custom content
-                day: cn("h-full w-full focus:relative focus:z-10 rounded-full"), // Day takes full cell, rounded for selection highlight
+                cell: cn("h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 text-center relative rounded-md p-0"), // Cell size increased for content
+                day: cn("h-full w-full focus:relative focus:z-10 rounded-full"), 
                 day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"),
                 day_today: cn("!bg-primary/30 !text-primary-foreground font-semibold"),
                 day_outside: cn("text-muted-foreground/50 !opacity-50"),
@@ -280,5 +295,4 @@ export default function HomePage() {
       />
     </div>
   );
-
-    
+}
