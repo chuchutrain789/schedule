@@ -107,7 +107,7 @@ export default function HomePage() {
         {assigneesForDay.length > 0 && (
           <div
             className={cn(
-              "mt-0.5 text-[0.6rem] md:text-[0.65rem] leading-tight px-1.5 py-0.5 rounded-sm shadow-sm truncate w-auto max-w-[90%]",
+              "mt-0.5 text-[0.5rem] md:text-[0.55rem] leading-tight px-1 py-0 rounded-xs truncate w-auto max-w-[85%]",
               assigneeColors[assigneesForDay[0]] || assigneeColors['미지정']
             )}
             title={assigneesForDay.join(', ')} // Show full list on hover
@@ -225,6 +225,8 @@ export default function HomePage() {
                 caption_label: "text-lg font-semibold",
                 nav_button: "h-8 w-8",
                 month: "space-y-3 md:space-y-4", 
+                head_row: "flex w-full mt-1 md:mt-2",
+                head_cell: cn("text-muted-foreground rounded-md w-16 md:w-20 lg:w-24 font-normal text-xs flex items-center justify-center p-1"),
                 row: "flex w-full mt-1 md:mt-2", 
                 cell: cn("h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 text-center relative rounded-md p-0"), // Cell size increased for content
                 day: cn("h-full w-full focus:relative focus:z-10 rounded-full"), 
