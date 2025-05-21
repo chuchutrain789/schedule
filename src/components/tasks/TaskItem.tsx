@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Edit3, Trash2, User, CalendarClock, AlertTriangle, Bell, BellOff } from 'lucide-react';
 import { format, isPast, isToday, differenceInCalendarDays } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface TaskItemProps {
   task: Task;
