@@ -72,6 +72,7 @@ export default function HomePage() {
 
   const parseDeadline = (deadlineStr: string): Date => {
     const parts = deadlineStr.split('-').map(Number);
+    // JavaScript Date months are 0-indexed (0 for January, 11 for December)
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
 
@@ -109,19 +110,26 @@ export default function HomePage() {
     const assigneesForDay = assigneesByDate.get(dateStr) || [];
 
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full text-center p-0.5">
-        <span>{dayOfMonth}</span>
+      <div className="flex flex-col items-center justify-between h-full w-full text-center p-0.5">
+        <span className="text-sm">{dayOfMonth}</span>
         {assigneesForDay.length > 0 && (
-          <div
-            className={cn(
-              "mt-1 text-xs font-medium leading-tight px-2 py-1 rounded-md truncate inline-block max-w-[90%]",
-              assigneeColors[assigneesForDay[0]] || assigneeColors['미지정']
-            )}
-            title={assigneesForDay.join(', ')}
-          >
-            {assigneesForDay[0]}
-            {assigneesForDay.length > 1 && (
-              <span className="ml-1 font-semibold opacity-80">+{assigneesForDay.length - 1}</span>
+          <div className="flex flex-col items-center space-y-0.5 mt-1 overflow-hidden w-full">
+            {assigneesForDay.slice(0, 3).map((assignee) => ( // Display up to 3 assignees to avoid overflow
+              <div
+                key={assignee}
+                className={cn(
+                  "text-[0.6rem] font-semibold leading-tight px-1.5 py-0.5 rounded-sm truncate w-full max-w-[calc(100%-4px)]",
+                  assigneeColors[assignee] || assigneeColors['미지정']
+                )}
+                title={assignee} 
+              >
+                {assignee}
+              </div>
+            ))}
+            {assigneesForDay.length > 3 && (
+                <div className="text-[0.5rem] text-muted-foreground mt-0.5" title={assigneesForDay.join(', ')}>
+                    +{assigneesForDay.length - 3} more
+                </div>
             )}
           </div>
         )}
@@ -130,7 +138,6 @@ export default function HomePage() {
   }, [assigneesByDate]);
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
-    // Prevent click handling if the day is outside the current month or disabled, etc.
     if (modifiers.outside || modifiers.disabled) {
       return;
     }
@@ -161,7 +168,7 @@ export default function HomePage() {
 
       const timer = setTimeout(() => {
         setHighlightedTaskIds([]);
-      }, 3000); // Highlight for 3 seconds
+      }, 3000); 
 
       return () => clearTimeout(timer);
     }
@@ -274,8 +281,8 @@ export default function HomePage() {
                 head_row: "flex w-full mt-1 md:mt-2",
                 head_cell: cn("text-muted-foreground rounded-md w-16 md:w-20 lg:w-24 font-normal text-xs flex items-center justify-center p-1"),
                 row: "flex w-full mt-1 md:mt-2", 
-                cell: cn("h-16 w-16 md:h-20 md:w-20 lg:h-24 lg:w-24 text-center relative rounded-md p-0"), 
-                day: cn("h-full w-full focus:relative focus:z-10 rounded-full"), 
+                cell: cn("h-20 w-16 md:h-24 md:w-20 lg:h-28 lg:w-24 text-center relative rounded-md p-0"), // Increased height slightly
+                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"), // Changed from rounded-full for more space
                 day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"),
                 day_today: cn("!bg-primary/30 !text-primary-foreground font-semibold"),
                 day_outside: cn("text-muted-foreground/50 !opacity-50"),
@@ -346,5 +353,3 @@ export default function HomePage() {
     </div>
   );
 }
-
-    
