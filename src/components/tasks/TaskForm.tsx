@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Task, Priority } from '@/lib/types';
@@ -17,7 +18,7 @@ import { ko } from 'date-fns/locale';
 
 const taskSchema = z.object({
   name: z.string().min(1, { message: '업무명을 입력해주세요.' }),
-  assignee: z.string().min(1, { message: '담당자를 입력해주세요.' }),
+  assignee: z.string().min(1, { message: '담당자를 선택해주세요.' }),
   deadline: z.date({ required_error: '마감일을 선택해주세요.' }),
   priority: z.enum(['high', 'medium', 'low'], { required_error: '중요도를 선택해주세요.' }),
 });
@@ -29,6 +30,8 @@ interface TaskFormProps {
   initialData?: Task | null;
   onClose?: () => void;
 }
+
+const assignees = ['최준원', '백옥주', '추효정', '추성욱', '신미경', '추상훈'];
 
 export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
   const form = useForm<TaskFormValues>({
@@ -42,7 +45,7 @@ export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
         }
       : {
           name: '',
-          assignee: '',
+          assignee: '', // Default to empty, user must select
           deadline: undefined,
           priority: 'medium',
         },
@@ -56,7 +59,7 @@ export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
       priority: values.priority as Priority,
     });
     if (!initialData) { // Reset only for new task form
-      form.reset();
+      form.reset({ name: '', assignee: '', deadline: undefined, priority: 'medium' });
     }
     onClose?.();
   };
@@ -83,9 +86,20 @@ export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>담당자</FormLabel>
-              <FormControl>
-                <Input placeholder="예: 김철수" {...field} />
-              </FormControl>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="담당자 선택" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {assignees.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}
