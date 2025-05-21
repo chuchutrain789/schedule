@@ -7,8 +7,10 @@ import { TaskForm } from '@/components/tasks/TaskForm';
 import { TaskList } from '@/components/tasks/TaskList';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Calendar as CalendarIconShad, Wand2, PlusSquare } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Calendar as CalendarIconShad, Wand2, PlusSquare, UserCog, X } from 'lucide-react';
 import { AppHeader } from '@/components/common/Header';
 import { AiSchedulerModal } from '@/components/tasks/AiSchedulerModal';
 import { getAiScheduleAction } from './actions';
@@ -19,6 +21,8 @@ import { format } from 'date-fns';
 import type { DayContentProps, DayModifiers } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Checkbox } from "@/components/ui/checkbox";
+
+const initialAssignees = ['최준원', '백옥주', '추효정', '추성욱', '신미경', '추상훈'];
 
 const assigneeColors: Record<string, string> = {
   '최준원': 'bg-sky-200 text-sky-800',
@@ -32,6 +36,7 @@ const assigneeColors: Record<string, string> = {
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [assignees, setAssignees] = useState<string[]>(initialAssignees);
   const [isTaskFormModalOpen, setIsTaskFormModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -41,6 +46,10 @@ export default function HomePage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<string[]>([]);
   const taskItemRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+
+  const [isAssigneeManagerModalOpen, setIsAssigneeManagerModalOpen] = useState(false);
+  const [newAssigneeName, setNewAssigneeName] = useState('');
+
 
   const registerTaskItemRef = useCallback((id: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -65,11 +74,58 @@ export default function HomePage() {
         setTasks([]);
       }
     }
+
+    const storedAssignees = localStorage.getItem('assignees');
+    if (storedAssignees) {
+      try {
+        const parsedAssignees = JSON.parse(storedAssignees);
+        if (Array.isArray(parsedAssignees) && parsedAssignees.every(item => typeof item === 'string')) {
+          setAssignees(parsedAssignees);
+        }
+      } catch (error) {
+        console.error("Error parsing assignees from localStorage:", error);
+        // Keep initialAssignees if localStorage parsing fails
+      }
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem('tasks', JSON.stringify(tasks));
   }, [tasks]);
+
+  useEffect(() => {
+    localStorage.setItem('assignees', JSON.stringify(assignees));
+  }, [assignees]);
+
+
+  const handleAddAssignee = () => {
+    const trimmedName = newAssigneeName.trim();
+    if (trimmedName && !assignees.includes(trimmedName)) {
+      setAssignees(prev => [...prev, trimmedName]);
+      setNewAssigneeName('');
+      toast({ title: "담당자 추가됨", description: `${trimmedName} 님이 담당자 목록에 추가되었습니다.` });
+    } else if (assignees.includes(trimmedName)) {
+      toast({ title: "오류", description: "이미 존재하는 담당자 이름입니다.", variant: "destructive" });
+    } else {
+      toast({ title: "오류", description: "담당자 이름을 입력해주세요.", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveAssignee = (assigneeToRemove: string) => {
+    const hasIncompleteTasks = tasks.some(task => task.assignee === assigneeToRemove && !task.completed);
+    if (hasIncompleteTasks) {
+      toast({
+        title: "삭제 불가",
+        description: `${assigneeToRemove}님에게 배정된 미완료 업무가 있어 삭제할 수 없습니다. 업무를 다른 담당자에게 재배정하거나 완료처리 후 시도해주세요.`,
+        variant: "destructive",
+        duration: 7000, // Longer duration for important message
+      });
+      return;
+    }
+    setAssignees(prev => prev.filter(name => name !== assigneeToRemove));
+    toast({ title: "담당자 삭제됨", description: `${assigneeToRemove} 님이 담당자 목록에서 삭제되었습니다.` });
+  };
+
 
   const parseDeadline = (deadlineStr: string): Date => {
     const parts = deadlineStr.split('-').map(Number);
@@ -202,7 +258,7 @@ export default function HomePage() {
         )}
       </div>
     );
-  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, highlightedTaskIds]); // highlightedTaskIds 추가
+  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, highlightedTaskIds, assignees]);
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
     if (modifiers.outside || modifiers.disabled) {
@@ -392,14 +448,19 @@ export default function HomePage() {
         
         <Card className="mb-8 shadow-xl border-primary/20 border-2">
           <CardHeader className="pb-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-4">
               <CardTitle className="text-2xl text-primary-foreground bg-primary p-3 rounded-lg shadow-md">
                 <PlusSquare className="inline-block h-7 w-7 mr-2 align-text-bottom" />
                 새 업무 관리
               </CardTitle>
-              <Button onClick={openNewTaskModal} variant="default" className="bg-accent hover:bg-accent/80 text-accent-foreground shadow-md">
-                <PlusSquare className="mr-2 h-5 w-5" /> 업무 추가하기
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => setIsAssigneeManagerModalOpen(true)} variant="outline" className="shadow-md">
+                    <UserCog className="mr-2 h-5 w-5" /> 담당자 관리
+                </Button>
+                <Button onClick={openNewTaskModal} variant="default" className="bg-accent hover:bg-accent/80 text-accent-foreground shadow-md">
+                  <PlusSquare className="mr-2 h-5 w-5" /> 업무 추가하기
+                </Button>
+              </div>
             </div>
           </CardHeader>
         </Card>
@@ -416,9 +477,50 @@ export default function HomePage() {
               onSubmit={editingTask ? handleEditTask : handleAddTask}
               initialData={editingTask}
               onClose={() => setIsTaskFormModalOpen(false)}
+              assignees={assignees}
             />
           </DialogContent>
         </Dialog>
+
+        <Dialog open={isAssigneeManagerModalOpen} onOpenChange={setIsAssigneeManagerModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-2xl">담당자 관리</DialogTitle>
+              <DialogDescription>새로운 담당자를 추가하거나 기존 담당자를 목록에서 삭제합니다. 미완료 업무가 배정된 담당자는 삭제할 수 없습니다.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex space-x-2">
+                <Input
+                  value={newAssigneeName}
+                  onChange={(e) => setNewAssigneeName(e.target.value)}
+                  placeholder="새 담당자 이름 입력"
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleAddAssignee(); }}
+                />
+                <Button onClick={handleAddAssignee} className="bg-accent hover:bg-accent/90 text-accent-foreground">추가</Button>
+              </div>
+              <ScrollArea className="h-[200px] w-full rounded-md border p-3">
+                {assignees.length > 0 ? (
+                  <ul className="space-y-2">
+                    {assignees.map(name => (
+                      <li key={name} className="flex items-center justify-between p-2 bg-muted/60 rounded-md hover:bg-muted transition-colors">
+                        <span className="text-sm font-medium">{name}</span>
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveAssignee(name)} aria-label={`${name} 담당자 삭제`} className="h-7 w-7 hover:bg-destructive/10">
+                          <X className="h-4 w-4 text-destructive hover:text-destructive/80" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-center text-sm text-muted-foreground py-4">등록된 담당자가 없습니다. 새 담당자를 추가해주세요.</p>
+                )}
+              </ScrollArea>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAssigneeManagerModalOpen(false)}>닫기</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
 
         <div className="mb-8 flex justify-end">
           <Button onClick={handleGetAiSchedule} size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transform hover:scale-105 transition-transform duration-150">
@@ -449,3 +551,4 @@ export default function HomePage() {
     </div>
   );
 }
+

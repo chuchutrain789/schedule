@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { CalendarIcon, PlusCircle, Edit3 } from 'lucide-react';
 import { ko } from 'date-fns/locale';
+import { useEffect } from 'react';
 
 const taskSchema = z.object({
   name: z.string().min(1, { message: '업무명을 입력해주세요.' }),
@@ -29,11 +30,10 @@ interface TaskFormProps {
   onSubmit: (task: Omit<Task, 'id' | 'completed' | 'enableReminders'>) => void;
   initialData?: Task | null;
   onClose?: () => void;
+  assignees: string[]; // Changed from static array to prop
 }
 
-const assignees = ['최준원', '백옥주', '추효정', '추성욱', '신미경', '추상훈'];
-
-export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
+export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskFormProps) {
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
     defaultValues: initialData
@@ -45,11 +45,31 @@ export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
         }
       : {
           name: '',
-          assignee: '', // Default to empty, user must select
+          assignee: assignees.length > 0 ? assignees[0] : '', // Default to first assignee or empty if list is empty
           deadline: undefined,
           priority: 'medium',
         },
   });
+
+  // Reset form if initialData or assignees list changes for a new task form
+  useEffect(() => {
+    if (!initialData) {
+      form.reset({
+        name: '',
+        assignee: assignees.length > 0 ? assignees[0] : '',
+        deadline: undefined,
+        priority: 'medium',
+      });
+    } else {
+        form.reset({
+            name: initialData.name,
+            assignee: initialData.assignee,
+            deadline: new Date(initialData.deadline),
+            priority: initialData.priority,
+        });
+    }
+  }, [initialData, assignees, form]);
+
 
   const handleSubmit = (values: TaskFormValues) => {
     onSubmit({
@@ -58,8 +78,13 @@ export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
       deadline: format(values.deadline, 'yyyy-MM-dd'),
       priority: values.priority as Priority,
     });
-    if (!initialData) { // Reset only for new task form
-      form.reset({ name: '', assignee: '', deadline: undefined, priority: 'medium' });
+    if (!initialData) { 
+      form.reset({ 
+        name: '', 
+        assignee: assignees.length > 0 ? assignees[0] : '', 
+        deadline: undefined, 
+        priority: 'medium' 
+      });
     }
     onClose?.();
   };
@@ -86,18 +111,26 @@ export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>담당자</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select 
+                onValueChange={field.onChange} 
+                value={field.value} // Ensure value is controlled
+                defaultValue={field.value || (assignees.length > 0 ? assignees[0] : '')} // Ensure default value selection
+              >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="담당자 선택" />
+                    <SelectValue placeholder={assignees.length > 0 ? "담당자 선택" : "담당자 없음 (추가 필요)"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {assignees.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
+                  {assignees.length > 0 ? (
+                    assignees.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>담당자를 추가해주세요</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -164,7 +197,7 @@ export function TaskForm({ onSubmit, initialData, onClose }: TaskFormProps) {
         />
         <div className="flex justify-end space-x-2">
           {onClose && <Button type="button" variant="outline" onClick={onClose}>취소</Button>}
-          <Button type="submit" className="bg-accent hover:bg-accent/90 text-accent-foreground">
+          <Button type="submit" className="bg-accent hover:bg-accent/90 text-accent-foreground" disabled={assignees.length === 0 && !initialData?.assignee}>
             {initialData ? <Edit3 className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />}
             {initialData ? '업무 수정' : '업무 추가'}
           </Button>
