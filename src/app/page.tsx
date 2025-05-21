@@ -17,7 +17,7 @@ import { getAiScheduleAction } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar } from '@/components/ui/calendar'; // Shadcn Calendar
 import { ko } from 'date-fns/locale';
-import { format, parseISO, subDays, differenceInCalendarDays } from 'date-fns';
+import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import type { DayContentProps, DayModifiers } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,6 +51,9 @@ export default function HomePage() {
   const [isAssigneeManagerModalOpen, setIsAssigneeManagerModalOpen] = useState(false);
   const [newAssigneeName, setNewAssigneeName] = useState('');
 
+  const [openAccordionItem, setOpenAccordionItem] = useState<string | undefined>();
+  const archivedSectionRef = useRef<HTMLDivElement>(null);
+
 
   const registerTaskItemRef = useCallback((id: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -68,7 +71,6 @@ export default function HomePage() {
         if (Array.isArray(parsedTasks)) {
           setTasks(parsedTasks.map(task => ({
             ...task,
-            // Ensure deadline is a string, and completionDate if exists, is also handled (string or undefined)
             deadline: String(task.deadline),
             completionDate: task.completionDate ? String(task.completionDate) : undefined,
           })));
@@ -133,7 +135,6 @@ export default function HomePage() {
 
 
   const parseDeadline = (deadlineStr: string): Date => {
-    // Assuming YYYY-MM-DD. For ISO strings (like completionDate), parseISO is better.
     const parts = deadlineStr.split('-').map(Number);
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
@@ -264,7 +265,7 @@ export default function HomePage() {
         )}
       </div>
     );
-  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, assignees]); // Removed highlightedTaskIds as it caused re-renders
+  }, [assigneesByDate, tasks, toast, handleCalendarBatchComplete, assignees]);
 
   const handleDayClick = (day: Date, modifiers: DayModifiers, event: React.MouseEvent) => {
     if (modifiers.outside || modifiers.disabled) {
@@ -403,35 +404,43 @@ export default function HomePage() {
     setIsTaskFormModalOpen(true);
   }
 
-  const twoDaysAgo = useMemo(() => subDays(new Date(), 2), []);
-
   const activeTasks = useMemo(() => {
+    const today = new Date();
     return tasks.filter(task => {
       if (!task.completed) return true;
-      if (!task.completionDate) return true; // Should have completionDate if completed
+      if (!task.completionDate) return true; 
       try {
-        return parseISO(task.completionDate) >= twoDaysAgo;
+        const completionD = parseISO(task.completionDate);
+        // Keep if completed less than 1 calendar day ago (i.e., today)
+        return differenceInCalendarDays(today, completionD) < 1;
       } catch (e) {
         console.error("Error parsing completionDate for activeTasks filter:", task.completionDate, e);
-        return true; // Fallback: keep task if date is unparsable
+        return true; 
       }
     });
-  }, [tasks, twoDaysAgo]);
+  }, [tasks]);
 
   const archivedTasksToDisplay = useMemo(() => {
+    const today = new Date();
     return tasks.filter(task => {
       if (!task.completed || !task.completionDate) return false;
       try {
-        return parseISO(task.completionDate) < twoDaysAgo;
+        const completionD = parseISO(task.completionDate);
+        // Archive if completed 1 or more calendar days ago
+        return differenceInCalendarDays(today, completionD) >= 1;
       } catch (e) {
         console.error("Error parsing completionDate for archivedTasksToDisplay filter:", task.completionDate, e);
-        return false; // Fallback: don't archive if date is unparsable
+        return false; 
       }
-    }).sort((a, b) => { // Sort archived tasks by completion date, newest first
+    }).sort((a, b) => { 
         if (!a.completionDate || !b.completionDate) return 0;
-        return parseISO(b.completionDate).getTime() - parseISO(a.completionDate).getTime();
+        try {
+            return parseISO(b.completionDate).getTime() - parseISO(a.completionDate).getTime();
+        } catch {
+            return 0;
+        }
     });
-  }, [tasks, twoDaysAgo]);
+  }, [tasks]);
 
 
   const handleGetAiSchedule = async () => {
@@ -439,7 +448,6 @@ export default function HomePage() {
     setIsAiLoading(true);
     setAiSchedule(null);
     try {
-      // Pass only active, non-archived tasks to AI
       const tasksForAISuggestion = activeTasks.filter(task => !task.completed);
       const schedule = await getAiScheduleAction(tasksForAISuggestion);
       setAiSchedule(schedule);
@@ -497,9 +505,24 @@ export default function HomePage() {
                 <PlusSquare className="inline-block h-7 w-7 mr-2 align-text-bottom" />
                 새 업무 관리
               </CardTitle>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button onClick={() => setIsAssigneeManagerModalOpen(true)} variant="outline" className="shadow-md">
                     <UserCog className="mr-2 h-5 w-5" /> 담당자 관리
+                </Button>
+                <Button
+                  onClick={() => {
+                    const targetItem = "archived-tasks";
+                    setOpenAccordionItem(prev => prev === targetItem ? undefined : targetItem);
+                    setTimeout(() => {
+                        archivedSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                  }}
+                  variant="outline"
+                  className="shadow-md"
+                  disabled={archivedTasksToDisplay.length === 0}
+                >
+                  <Archive className="mr-2 h-5 w-5" />
+                  지난 업무 보기 ({archivedTasksToDisplay.length})
                 </Button>
                 <Button onClick={openNewTaskModal} variant="default" className="bg-accent hover:bg-accent/80 text-accent-foreground shadow-md">
                   <PlusSquare className="mr-2 h-5 w-5" /> 업무 추가하기
@@ -581,30 +604,38 @@ export default function HomePage() {
           highlightedTaskIds={highlightedTaskIds}
           registerTaskItemRef={registerTaskItemRef}
         />
-
-        {archivedTasksToDisplay.length > 0 && (
-          <Accordion type="single" collapsible className="w-full mt-12">
-            <AccordionItem value="archived-tasks">
-              <AccordionTrigger className="text-lg font-semibold text-primary hover:no-underline py-3 px-4 rounded-md bg-muted/50 hover:bg-muted/70 transition-colors">
-                <div className="flex items-center">
-                  <Archive className="mr-3 h-6 w-6 text-primary/80" />
-                  지난 업무 목록 ({archivedTasksToDisplay.length}개)
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4">
-                <TaskList
-                  tasks={archivedTasksToDisplay}
-                  onToggleComplete={handleToggleComplete} // Allow un-archiving by marking incomplete
-                  onDelete={handleDeleteTask}
-                  onEdit={openEditModal} // Allow editing archived, though less common
-                  onToggleReminder={handleToggleReminder}
-                  highlightedTaskIds={highlightedTaskIds} // May not be very useful here
-                  registerTaskItemRef={registerTaskItemRef} // May not be very useful here
-                />
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        )}
+        
+        <div ref={archivedSectionRef}>
+          {archivedTasksToDisplay.length > 0 && (
+            <Accordion 
+              type="single" 
+              collapsible 
+              className="w-full mt-12"
+              value={openAccordionItem}
+              onValueChange={setOpenAccordionItem}
+            >
+              <AccordionItem value="archived-tasks">
+                <AccordionTrigger className="text-lg font-semibold text-primary hover:no-underline py-3 px-4 rounded-md bg-muted/50 hover:bg-muted/70 transition-colors">
+                  <div className="flex items-center">
+                    <Archive className="mr-3 h-6 w-6 text-primary/80" />
+                    지난 업무 목록 ({archivedTasksToDisplay.length}개)
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pt-4">
+                  <TaskList
+                    tasks={archivedTasksToDisplay}
+                    onToggleComplete={handleToggleComplete} 
+                    onDelete={handleDeleteTask}
+                    onEdit={openEditModal} 
+                    onToggleReminder={handleToggleReminder}
+                    highlightedTaskIds={highlightedTaskIds} 
+                    registerTaskItemRef={registerTaskItemRef} 
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+        </div>
 
       </main>
       <footer className="text-center py-6 border-t text-sm text-muted-foreground">
@@ -620,3 +651,4 @@ export default function HomePage() {
     </div>
   );
 }
+
