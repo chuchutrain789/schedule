@@ -27,7 +27,7 @@ const taskSchema = z.object({
 type TaskFormValues = z.infer<typeof taskSchema>;
 
 interface TaskFormProps {
-  onSubmit: (task: Omit<Task, 'id' | 'completed' | 'enableReminders'>) => void;
+  onSubmit: (task: Omit<Task, 'id' | 'completed' | 'enableReminders' | 'completionDate'>) => void;
   initialData?: Task | null;
   onClose?: () => void;
   assignees: string[]; // Changed from static array to prop
@@ -163,7 +163,6 @@ export function TaskForm({ onSubmit, initialData, onClose, assignees }: TaskForm
                     mode="single"
                     selected={field.value}
                     onSelect={field.onChange}
-                    disabled={(date) => date < new Date(new Date().setHours(0,0,0,0)) } // Disable past dates
                     initialFocus
                     locale={ko}
                   />
