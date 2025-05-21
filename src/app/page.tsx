@@ -72,7 +72,6 @@ export default function HomePage() {
 
   const parseDeadline = (deadlineStr: string): Date => {
     const parts = deadlineStr.split('-').map(Number);
-    // JavaScript Date months are 0-indexed (0 for January, 11 for December)
     return new Date(parts[0], parts[1] - 1, parts[2]);
   };
 
@@ -110,15 +109,16 @@ export default function HomePage() {
     const assigneesForDay = assigneesByDate.get(dateStr) || [];
 
     return (
-      <div className="flex flex-col items-center justify-between h-full w-full text-center p-0.5">
+      <div className="flex flex-col items-center justify-start h-full w-full text-center p-0.5 pt-1">
         <span className="text-sm">{dayOfMonth}</span>
         {assigneesForDay.length > 0 && (
           <div className="flex flex-col items-center space-y-0.5 mt-1 overflow-hidden w-full">
-            {assigneesForDay.slice(0, 3).map((assignee) => ( // Display up to 3 assignees to avoid overflow
+            {assigneesForDay.slice(0, 3).map((assignee) => (
               <div
                 key={assignee}
+                data-assignee={assignee} // Added for click handling
                 className={cn(
-                  "text-[0.6rem] font-semibold leading-tight px-1.5 py-0.5 rounded-sm truncate w-full max-w-[calc(100%-4px)]",
+                  "text-xs font-semibold leading-snug px-2 py-0.5 rounded-md truncate w-[90%] max-w-[calc(100%-8px)] cursor-pointer transition-opacity hover:opacity-75", 
                   assigneeColors[assignee] || assigneeColors['미지정']
                 )}
                 title={assignee} 
@@ -127,7 +127,7 @@ export default function HomePage() {
               </div>
             ))}
             {assigneesForDay.length > 3 && (
-                <div className="text-[0.5rem] text-muted-foreground mt-0.5" title={assigneesForDay.join(', ')}>
+                <div className="text-[0.6rem] text-muted-foreground mt-0.5" title={assigneesForDay.slice(3).join(', ')}>
                     +{assigneesForDay.length - 3} more
                 </div>
             )}
@@ -142,12 +142,26 @@ export default function HomePage() {
       return;
     }
     const clickedDateStr = format(day, 'yyyy-MM-dd');
-    const tasksForDay = tasks.filter(
+    
+    let specificAssignee: string | undefined = undefined;
+    const targetElement = event.target as HTMLElement;
+    // Traverse up to find the element with data-assignee, or the cell itself
+    const assigneeBadge = targetElement.closest('[data-assignee]') as HTMLElement | null;
+
+    if (assigneeBadge && assigneeBadge.dataset.assignee) {
+      specificAssignee = assigneeBadge.dataset.assignee;
+    }
+
+    let tasksToConsider = tasks.filter(
       task => task.deadline === clickedDateStr && !task.completed
     );
 
-    if (tasksForDay.length > 0) {
-      const idsToHighlight = tasksForDay.map(t => t.id);
+    if (specificAssignee) {
+      tasksToConsider = tasksToConsider.filter(task => task.assignee === specificAssignee);
+    }
+
+    if (tasksToConsider.length > 0) {
+      const idsToHighlight = tasksToConsider.map(t => t.id);
       setHighlightedTaskIds(idsToHighlight);
     } else {
       setHighlightedTaskIds([]); 
@@ -281,8 +295,8 @@ export default function HomePage() {
                 head_row: "flex w-full mt-1 md:mt-2",
                 head_cell: cn("text-muted-foreground rounded-md w-16 md:w-20 lg:w-24 font-normal text-xs flex items-center justify-center p-1"),
                 row: "flex w-full mt-1 md:mt-2", 
-                cell: cn("h-20 w-16 md:h-24 md:w-20 lg:h-28 lg:w-24 text-center relative rounded-md p-0"), // Increased height slightly
-                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"), // Changed from rounded-full for more space
+                cell: cn("h-20 w-16 md:h-24 md:w-20 lg:h-28 lg:w-24 text-center relative rounded-md p-0"),
+                day: cn("h-full w-full focus:relative focus:z-10 rounded-md"),
                 day_selected: cn("!bg-accent !text-accent-foreground font-bold opacity-100"),
                 day_today: cn("!bg-primary/30 !text-primary-foreground font-semibold"),
                 day_outside: cn("text-muted-foreground/50 !opacity-50"),
